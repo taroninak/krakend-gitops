@@ -10,6 +10,8 @@ REALM="${REALM:-poc}"
 CLIENT_ID="${CLIENT_ID:-krakend-demo}"
 IAM_NS="${IAM_NS:-iam}"
 
+json() { python3 -c "import json,sys;print(json.load(sys.stdin)$1)"; }
+
 admin_user=$(kubectl -n "$IAM_NS" get secret keycloak-admin \
   -o jsonpath='{.data.KC_BOOTSTRAP_ADMIN_USERNAME}' | base64 -d)
 admin_pass=$(kubectl -n "$IAM_NS" get secret keycloak-admin \
@@ -20,26 +22,20 @@ admin_token=$(curl -fsS -X POST \
   -d "client_id=admin-cli" \
   -d "username=$admin_user" \
   -d "password=$admin_pass" \
-  -d "grant_type=password" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  -d "grant_type=password" | json "['access_token']")
 
 client_uuid=$(curl -fsS \
   -H "Authorization: Bearer $admin_token" \
   "$KC_URL/admin/realms/$REALM/clients?clientId=$CLIENT_ID" \
-  | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -1)
-
-if [[ -z "$client_uuid" ]]; then
-  echo "client $CLIENT_ID not found in realm $REALM" >&2
-  exit 1
-fi
+  | json "[0]['id']")
 
 client_secret=$(curl -fsS \
   -H "Authorization: Bearer $admin_token" \
   "$KC_URL/admin/realms/$REALM/clients/$client_uuid/client-secret" \
-  | sed -n 's/.*"value":"\([^"]*\)".*/\1/p')
+  | json "['value']")
 
 curl -fsS -X POST \
   "$KC_URL/realms/$REALM/protocol/openid-connect/token" \
   -d "client_id=$CLIENT_ID" \
   -d "client_secret=$client_secret" \
-  -d "grant_type=client_credentials" \
-  | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'
+  -d "grant_type=client_credentials" | json "['access_token']"
