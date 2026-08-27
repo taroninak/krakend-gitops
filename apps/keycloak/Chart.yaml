@@ -1,0 +1,10 @@
+apiVersion: v2
+name: keycloak
+description: Keycloak identity provider, its PostgreSQL database, and the realm imported from Git
+type: application
+version: 0.1.0
+appVersion: "26.7.2"
+dependencies:
+  - name: keycloakx
+    version: 7.3.0
+    repository: https://codecentric.github.io/helm-charts

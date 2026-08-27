@@ -8,6 +8,8 @@ INFRA        ?= infra
 ARGOCD_NS    ?= argocd
 GATEWAY_HOST ?= api.localhost
 ARGOCD_HOST  ?= argocd.localhost
+KEYCLOAK_HOST ?= keycloak.localhost
+IAM_NS       ?= iam
 INGRESS_PORT ?= 8080
 
 # Upstream KrakenD chart — kept in sync with clusters/poc/values.yaml so that
@@ -55,6 +57,19 @@ password: ## Print the initial Argo CD admin password
 ui: ## Open the Argo CD UI (user: admin, password: make password)
 	@open http://$(ARGOCD_HOST):$(INGRESS_PORT) || true
 
+.PHONY: keycloak-ui
+keycloak-ui: ## Open the Keycloak admin console (user: admin, password: make keycloak-password)
+	@open http://$(KEYCLOAK_HOST):$(INGRESS_PORT) || true
+
+.PHONY: keycloak-password
+keycloak-password: ## Print the generated Keycloak admin password
+	@kubectl -n $(IAM_NS) get secret keycloak-admin \
+	-o jsonpath='{.data.KC_BOOTSTRAP_ADMIN_PASSWORD}' | base64 -d; echo
+
+.PHONY: token
+token: ## Print an access token for the krakend-demo client
+	@./scripts/get-token.sh
+
 .PHONY: smoke
 smoke: ## Call the gateway through the ingress
 	@echo "--- GET /__health"
@@ -65,6 +80,12 @@ smoke: ## Call the gateway through the ingress
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/status/418
 	@echo "--- GET /v1/profile (two backends aggregated into one response)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/profile; echo
+	@echo "--- GET /v1/protected without a token (expect 401)"
+	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/protected
+	@echo "--- GET /v1/protected with a Keycloak token (expect 200)"
+	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' \
+	-H "Authorization: Bearer $$(./scripts/get-token.sh)" \
+	http://localhost:$(INGRESS_PORT)/v1/protected
 
 .PHONY: chart
 chart: ## Fetch the pinned KrakenD chart locally (used by `make lint`)
@@ -78,5 +99,7 @@ lint: chart ## Render everything locally (no cluster needed)
 	@$(TOFU) -chdir=$(INFRA) validate >/dev/null && echo "infra/              validate OK"
 	@helm template root clusters/poc --set repoURL=https://example.com/repo.git >/dev/null && echo "clusters/poc        OK"
 	@helm template httpbin apps/httpbin >/dev/null && echo "apps/httpbin        OK"
+	@helm dependency build apps/keycloak >/dev/null 2>&1 || true
+	@helm template keycloak apps/keycloak >/dev/null && echo "apps/keycloak       OK"
 	@helm template krakend $(CHART_DIR) --values apps/krakend/values.yaml >/dev/null && echo "apps/krakend        OK"
 	@helm template argocd argo/argo-cd --values platform/argocd/values.yaml >/dev/null && echo "platform/argocd     OK"

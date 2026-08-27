@@ -1,0 +1,105 @@
+# Keycloak, its database, and the realm — one Application, one values file.
+#
+# Credentials are NOT here: OpenTofu generates the admin password and the
+# database password and writes them into Secrets in the `iam` namespace
+# (infra/secrets.tf). This chart only references them by name.
+
+# --- PostgreSQL (templates/postgres.yaml) ------------------------------------
+postgres:
+  service: postgres
+  database: keycloak
+  username: keycloak
+  existingSecret: keycloak-db
+  existingSecretKey: password
+  storage: 2Gi
+  image:
+    repository: postgres
+    tag: "17-alpine"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+# --- Realm imported from Git (templates/realm-configmap.yaml) ----------------
+realm:
+  configMapName: keycloak-realm
+  fileName: realm-poc.json
+
+# --- Keycloak itself (codecentric/keycloakx subchart) ------------------------
+keycloakx:
+  replicas: 1
+
+  # kc.sh is the image entrypoint; `--import-realm` seeds the realm from the
+  # ConfigMap mounted below on a database that does not have it yet.
+  args:
+    - "start"
+    - "--import-realm"
+
+  http:
+    # Keycloak 26 serves at the root; the chart still defaults to the legacy
+    # /auth prefix. Setting this keeps issuer URLs clean.
+    relativePath: "/"
+
+  proxy:
+    enabled: true
+    # ingress-nginx sends X-Forwarded-*
+    mode: xforwarded
+
+  database:
+    vendor: postgres
+    hostname: postgres
+    port: 5432
+    database: keycloak
+    username: keycloak
+    existingSecret: keycloak-db
+    existingSecretKey: password
+
+  # Waits for PostgreSQL to accept connections before Keycloak starts.
+  dbchecker:
+    enabled: true
+
+  extraEnv: |
+    - name: KC_HOSTNAME
+      value: http://keycloak.localhost:8080
+    - name: KC_HOSTNAME_STRICT
+      value: "false"
+    - name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
+      value: "false"
+    - name: JAVA_OPTS_APPEND
+      value: -XX:MaxRAMPercentage=70
+
+  # KC_BOOTSTRAP_ADMIN_USERNAME / KC_BOOTSTRAP_ADMIN_PASSWORD
+  extraEnvFrom: |
+    - secretRef:
+        name: keycloak-admin
+
+  extraVolumes: |
+    - name: realm
+      configMap:
+        name: keycloak-realm
+
+  extraVolumeMounts: |
+    - name: realm
+      mountPath: /opt/keycloak/data/import
+      readOnly: true
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 640Mi
+    limits:
+      memory: 1Gi
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      # Keycloak sends large headers; the default nginx buffer is too small.
+      nginx.ingress.kubernetes.io/proxy-buffer-size: 128k
+    rules:
+      - host: keycloak.localhost
+        paths:
+          - path: /
+            pathType: Prefix

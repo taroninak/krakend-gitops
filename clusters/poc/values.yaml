@@ -19,3 +19,6 @@ krakend:
 
 httpbin:
   namespace: demo
+
+keycloak:
+  namespace: iam

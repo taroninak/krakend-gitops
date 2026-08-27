@@ -1,0 +1,12 @@
+# The realm definition, mounted into Keycloak's import directory. Keycloak imports
+# it on first start; after that the database is the source of truth (see README).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.realm.configMapName }}
+  labels:
+    app.kubernetes.io/name: keycloak-realm
+    app.kubernetes.io/part-of: krakend-poc
+data:
+  {{ .Values.realm.fileName }}: |
+{{ .Files.Get (printf "files/%s" .Values.realm.fileName) | indent 4 }}

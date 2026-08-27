@@ -1,0 +1,37 @@
+# Keycloak, its PostgreSQL database and the POC realm.
+#
+# The chart in apps/keycloak is an umbrella: it pulls the upstream keycloakx
+# chart as a dependency and adds the database and the realm ConfigMap, so the
+# whole identity provider is one Application with one values file.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: {{ .Values.argocdNamespace }}
+  annotations:
+    # Keycloak needs its database first; the chart's dbchecker waits, but the
+    # wave keeps the Argo CD UI honest about the ordering.
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: poc
+  source:
+    repoURL: {{ .Values.repoURL | quote }}
+    targetRevision: {{ .Values.targetRevision | quote }}
+    path: apps/keycloak
+    helm:
+      releaseName: keycloak
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.keycloak.namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 3m

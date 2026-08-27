@@ -56,3 +56,9 @@ variable "ingress_nginx_chart_version" {
   type        = string
   default     = "4.15.1"
 }
+
+variable "iam_namespace" {
+  description = "Namespace Keycloak and its database run in"
+  type        = string
+  default     = "iam"
+}
