@@ -90,6 +90,8 @@ make down               # destroy the cluster
 | `GET /v1/uuid` | Straight proxy to the upstream `/uuid` |
 | `GET /v1/status/{code}` | URL parameter forwarded to the upstream, response passed through untouched |
 | `GET /v1/profile` | Aggregates two upstream calls (`/uuid` + `/headers`) into one JSON response, rate limited to 20 req/s |
+| `GET /v1/users/{id}` | The users service on its own |
+| `GET /v1/orders/{id}` | The orders service on its own |
 | `GET /v1/customer/{id}` | Calls **two different services** in parallel and merges their JSON into one object |
 | `GET /v1/protected` | Requires a valid RS256 token issued by the Keycloak `poc` realm, with the `krakend` audience |
 | `GET /__health` | KrakenD's built-in health endpoint (used by the probes) |
@@ -146,6 +148,11 @@ GET /v1/customer/42
      ├── users-api  /users/42   {"customer_id","name","email","tier"}
      └── orders-api /orders/42  {"order_count","lifetime_value","orders"}
 ```
+
+Each half is also exposed on its own (`/v1/users/42`, `/v1/orders/42`) so you can
+see what the gateway merged. Note that this is a deliberate choice: KrakenD serves
+only the endpoints declared in `apps/krakend/values.yaml`, so an upstream is
+invisible from outside until a route names it.
 
 `/v1/profile` shows the other style: backends with a `group` key stay nested
 under their own name instead of being flattened.
