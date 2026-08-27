@@ -95,6 +95,18 @@ krakend:
           ]
         },
         {
+          "endpoint": "/v1/status/{code}",
+          "method": "GET",
+          "output_encoding": "no-op",
+          "backend": [
+            {
+              "url_pattern": "/status/{code}",
+              "encoding": "no-op",
+              "host": ["{{ .service.backend_host }}"]
+            }
+          ]
+        },
+        {
           "endpoint": "/v1/profile",
           "method": "GET",
           "output_encoding": "json",
