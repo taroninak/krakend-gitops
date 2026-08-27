@@ -14,3 +14,6 @@ crash.log
 # kubeconfig artifacts written by the kind provider
 infra/*-config
 apps/*/charts/
+
+# Editor settings
+.vscode/
