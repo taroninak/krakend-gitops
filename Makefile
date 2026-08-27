@@ -78,6 +78,8 @@ smoke: ## Call the gateway through the ingress
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/uuid; echo
 	@echo "--- GET /v1/status/418"
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/status/418
+	@echo "--- GET /v1/customer/42 (users-api + orders-api merged into one object)"
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customer/42; echo
 	@echo "--- GET /v1/profile (two backends aggregated into one response)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/profile; echo
 	@echo "--- GET /v1/protected without a token (expect 401)"
@@ -99,6 +101,9 @@ lint: chart ## Render everything locally (no cluster needed)
 	@$(TOFU) -chdir=$(INFRA) validate >/dev/null && echo "infra/              validate OK"
 	@helm template root clusters/poc --set repoURL=https://example.com/repo.git >/dev/null && echo "clusters/poc        OK"
 	@helm template httpbin apps/httpbin >/dev/null && echo "apps/httpbin        OK"
+	@helm template users-api apps/demo-api -f apps/demo-api/values-users.yaml >/dev/null \
+	&& helm template orders-api apps/demo-api -f apps/demo-api/values-orders.yaml >/dev/null \
+	&& echo "apps/demo-api       OK"
 	@helm dependency build apps/keycloak >/dev/null 2>&1 || true
 	@helm template keycloak apps/keycloak >/dev/null && echo "apps/keycloak       OK"
 	@helm template krakend $(CHART_DIR) --values apps/krakend/values.yaml >/dev/null && echo "apps/krakend        OK"

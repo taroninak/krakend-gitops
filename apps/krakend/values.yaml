@@ -47,6 +47,8 @@ krakend:
       {
         "environment": "poc",
         "backend_host": "http://httpbin.demo.svc.cluster.local:8080",
+        "users_host": "http://users-api.demo.svc.cluster.local:8080",
+        "orders_host": "http://orders-api.demo.svc.cluster.local:8080",
         "jwk_url": "http://keycloak-keycloakx-http.iam.svc.cluster.local/realms/poc/protocol/openid-connect/certs",
         "token_issuer": "http://keycloak.localhost:8080/realms/poc",
         "timeout": "3s",
@@ -105,6 +107,24 @@ krakend:
               "url_pattern": "/status/{code}",
               "encoding": "no-op",
               "host": ["{{ .service.backend_host }}"]
+            }
+          ]
+        },
+        {
+          "@comment": "Two different upstreams, one response: KrakenD calls both in parallel and merges the JSON objects. No `group` key, so the keys land side by side at the top level.",
+          "endpoint": "/v1/customer/{id}",
+          "method": "GET",
+          "output_encoding": "json",
+          "backend": [
+            {
+              "url_pattern": "/users/{id}",
+              "encoding": "json",
+              "host": ["{{ .service.users_host }}"]
+            },
+            {
+              "url_pattern": "/orders/{id}",
+              "encoding": "json",
+              "host": ["{{ .service.orders_host }}"]
             }
           ]
         },

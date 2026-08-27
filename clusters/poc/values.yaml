@@ -20,5 +20,13 @@ krakend:
 httpbin:
   namespace: demo
 
+# The two upstream APIs whose responses KrakenD merges into one.
+demoApiNamespace: demo
+demoApis:
+  - name: users-api
+    valuesFile: values-users.yaml
+  - name: orders-api
+    valuesFile: values-orders.yaml
+
 keycloak:
   namespace: iam

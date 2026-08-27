@@ -1,0 +1,24 @@
+# Defaults. Each instance supplies its own values file
+# (values-users.yaml / values-orders.yaml) via the Argo CD Application.
+
+nameOverride: ""
+replicaCount: 1
+
+image:
+  repository: nginxinc/nginx-unprivileged
+  tag: "1.29-alpine"
+  pullPolicy: IfNotPresent
+
+service:
+  port: 8080
+
+# Each route returns a fixed JSON document. Written as YAML here and rendered to
+# JSON by the chart, so the response body is readable and diffable in Git.
+routes: []
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    memory: 64Mi

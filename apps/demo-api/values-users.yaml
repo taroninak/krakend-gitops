@@ -1,0 +1,11 @@
+nameOverride: users-api
+
+# The customer record. Note the keys: they are disjoint from the ones the orders
+# API returns, so KrakenD can merge both responses into a single flat object.
+routes:
+  - path: /users
+    response:
+      customer_id: "42"
+      name: Ada Lovelace
+      email: ada@example.com
+      tier: gold

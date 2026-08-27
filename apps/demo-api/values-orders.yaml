@@ -1,0 +1,14 @@
+nameOverride: orders-api
+
+routes:
+  - path: /orders
+    response:
+      order_count: 2
+      lifetime_value: 55.5
+      orders:
+        - id: A-1001
+          item: Analytical Engine (spare parts)
+          total: 42.5
+        - id: A-1002
+          item: Punch cards, box of 500
+          total: 13.0

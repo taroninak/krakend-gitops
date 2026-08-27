@@ -1,0 +1,5 @@
+apiVersion: v2
+name: demo-api
+description: A tiny JSON API whose responses are defined in values — deployed twice to give KrakenD two different upstreams to merge
+type: application
+version: 0.1.0

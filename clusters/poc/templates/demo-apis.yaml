@@ -1,0 +1,29 @@
+# The two upstream APIs KrakenD merges. Same chart, one Application each, with
+# its own values file — adding a third service is three lines in values.yaml.
+{{- range .Values.demoApis }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Values.argocdNamespace }}
+spec:
+  project: poc
+  source:
+    repoURL: {{ $.Values.repoURL | quote }}
+    targetRevision: {{ $.Values.targetRevision | quote }}
+    path: apps/demo-api
+    helm:
+      releaseName: {{ .name }}
+      valueFiles:
+        - {{ .valuesFile }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ $.Values.demoApiNamespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}
