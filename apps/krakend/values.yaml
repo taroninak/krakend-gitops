@@ -1,0 +1,123 @@
+# Helm values for the KrakenD gateway.
+# Chart: https://github.com/krakend/contrib-helm-chart (pinned in clusters/poc/krakend.yaml)
+#
+# The gateway configuration itself lives here too, so a route change is an
+# ordinary pull request: merge to main -> Argo CD syncs -> KrakenD rolls out
+# (the chart hashes the ConfigMaps into the pod annotations, so the pods
+# restart automatically when the config changes).
+
+replicaCount: 2
+
+image:
+  registry: docker.io
+  repository: devopsfaith/krakend
+  tag: "2.9.4"
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    - host: api.localhost
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+krakend:
+  # Values that differ per environment live in the settings file, so the same
+  # gateway config can be promoted from poc -> staging -> prod unchanged.
+  # KrakenD's flexible configuration exposes settings/service.json as `.service`.
+  settings:
+    service.json: |-
+      {
+        "environment": "poc",
+        "backend_host": "http://httpbin.demo.svc.cluster.local:8080",
+        "timeout": "3s",
+        "cache_ttl": "0s",
+        "output_encoding": "json"
+      }
+
+  # The chart ships example partials; blank them out so the ConfigMap only
+  # contains what this POC actually uses. Partials and templates are the
+  # mechanism for splitting a large gateway config across files.
+  partials:
+    input_headers.tmpl: ""
+    rate_limit_backend.tmpl: ""
+    endpoints.tmpl: ""
+
+  # The complete gateway configuration (rendered by KrakenD at startup with
+  # the settings above).
+  config: |-
+    {
+      "$schema": "https://www.krakend.io/schema/v3.json",
+      "version": 3,
+      "name": "krakend-poc ({{ .service.environment }})",
+      "port": 8080,
+      "timeout": "{{ .service.timeout }}",
+      "cache_ttl": "{{ .service.cache_ttl }}",
+      "output_encoding": "{{ .service.output_encoding }}",
+      "extra_config": {
+        "telemetry/logging": {
+          "level": "INFO",
+          "stdout": true
+        },
+        "router": {
+          "logger_skip_paths": ["/__health"]
+        }
+      },
+      "endpoints": [
+        {
+          "endpoint": "/v1/uuid",
+          "method": "GET",
+          "output_encoding": "json",
+          "input_headers": ["Content-Type", "X-Request-Id"],
+          "backend": [
+            {
+              "url_pattern": "/uuid",
+              "encoding": "json",
+              "host": ["{{ .service.backend_host }}"]
+            }
+          ]
+        },
+        {
+          "endpoint": "/v1/profile",
+          "method": "GET",
+          "output_encoding": "json",
+          "extra_config": {
+            "qos/ratelimit/router": {
+              "max_rate": 20,
+              "capacity": 20
+            }
+          },
+          "backend": [
+            {
+              "url_pattern": "/uuid",
+              "encoding": "json",
+              "group": "identity",
+              "host": ["{{ .service.backend_host }}"]
+            },
+            {
+              "url_pattern": "/headers",
+              "encoding": "json",
+              "group": "request",
+              "host": ["{{ .service.backend_host }}"]
+            }
+          ]
+        }
+      ]
+    }
