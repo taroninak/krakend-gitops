@@ -1,0 +1,21 @@
+# repoURL and targetRevision are passed in by the root Application, which
+# Terraform creates from infra/terraform.tfvars — so the Git URL is configured
+# in exactly one place and every child Application inherits it.
+repoURL: ""
+targetRevision: main
+
+argocdNamespace: argocd
+
+# Argo CD's own chart version. Keep in sync with infra/variables.tf; the value
+# there is used for the initial install, this one for every sync afterwards.
+argocdChartVersion: "10.4.0"
+
+krakend:
+  # The community KrakenD chart is consumed straight from Git at a fixed commit,
+  # so an upstream change can never reach the cluster unreviewed.
+  chartRepo: https://github.com/krakend/contrib-helm-chart.git
+  chartRef: 85f99eee90c487a86b40d2d8f7d17d64c6d43f15
+  namespace: gateway
+
+httpbin:
+  namespace: demo

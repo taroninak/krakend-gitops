@@ -1,0 +1,5 @@
+# All of these are set by Terraform (infra/main.tf).
+repoURL: ""
+targetRevision: main
+path: clusters/poc
+argocdNamespace: argocd

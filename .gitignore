@@ -3,3 +3,13 @@
 kubeconfig*
 .env
 .cache/
+
+# OpenTofu / Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+crash.log
+
+# kubeconfig artifacts written by the kind provider
+infra/*-config

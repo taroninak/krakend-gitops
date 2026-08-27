@@ -1,28 +1,28 @@
 # Argo CD manages its own installation from Git.
-# `make argocd-install` only exists to break the chicken-and-egg problem at
-# cluster creation time; after this Application syncs, changes to
-# platform/argocd/values.yaml are rolled out by Argo CD itself.
+# Terraform installs it once (infra/main.tf) to break the chicken-and-egg
+# problem; from here on, changes to platform/argocd/values.yaml are rolled out
+# by Argo CD itself.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: argocd
-  namespace: argocd
+  namespace: {{ .Values.argocdNamespace }}
 spec:
   project: poc
   sources:
     - repoURL: https://argoproj.github.io/argo-helm
       chart: argo-cd
-      targetRevision: 10.4.0
+      targetRevision: {{ .Values.argocdChartVersion | quote }}
       helm:
         releaseName: argocd
         valueFiles:
           - $values/platform/argocd/values.yaml
-    - repoURL: https://github.com/taroninak/krakend-gitops.git
-      targetRevision: main
+    - repoURL: {{ .Values.repoURL | quote }}
+      targetRevision: {{ .Values.targetRevision | quote }}
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: argocd
+    namespace: {{ .Values.argocdNamespace }}
   syncPolicy:
     automated:
       # Never prune Argo CD's own resources automatically.

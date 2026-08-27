@@ -2,20 +2,20 @@ apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
   name: poc
-  namespace: argocd
+  namespace: {{ .Values.argocdNamespace }}
 spec:
   description: KrakenD GitOps proof of concept
   sourceRepos:
-    - https://github.com/taroninak/krakend-gitops.git
-    - https://github.com/krakend/contrib-helm-chart.git
+    - {{ .Values.repoURL | quote }}
+    - {{ .Values.krakend.chartRepo | quote }}
     - https://argoproj.github.io/argo-helm
   destinations:
     - server: https://kubernetes.default.svc
-      namespace: argocd
+      namespace: {{ .Values.argocdNamespace }}
     - server: https://kubernetes.default.svc
-      namespace: gateway
+      namespace: {{ .Values.krakend.namespace }}
     - server: https://kubernetes.default.svc
-      namespace: demo
+      namespace: {{ .Values.httpbin.namespace }}
   clusterResourceWhitelist:
     - group: ""
       kind: Namespace

@@ -1,0 +1,24 @@
+# A stand-in upstream API so the gateway has something real to route to,
+# packaged as a Helm chart in this repository.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: httpbin
+  namespace: {{ .Values.argocdNamespace }}
+spec:
+  project: poc
+  source:
+    repoURL: {{ .Values.repoURL | quote }}
+    targetRevision: {{ .Values.targetRevision | quote }}
+    path: apps/httpbin
+    helm:
+      releaseName: httpbin
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.httpbin.namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

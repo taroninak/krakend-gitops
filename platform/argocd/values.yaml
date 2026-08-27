@@ -32,7 +32,7 @@ configs:
 server:
   ingress:
     enabled: true
-    ingressClassName: traefik
+    ingressClassName: nginx
     hostname: argocd.localhost
     path: /
     pathType: Prefix

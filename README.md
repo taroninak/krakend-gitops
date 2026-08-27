@@ -1,65 +1,72 @@
-# KrakenD on Kubernetes, delivered by Argo CD
+# KrakenD on Kubernetes — IaC + GitOps proof of concept
 
-A self-contained proof of concept: a disposable Kubernetes cluster, Argo CD, and the
-KrakenD API gateway — all described as code, all delivered by GitOps.
-
-Nothing is installed by hand except Argo CD itself, and even that is handed back to
-Git immediately afterwards (Argo CD manages its own installation from
-`platform/argocd/values.yaml`).
+A local, disposable stack that follows the standard split: **OpenTofu provisions**,
+**Argo CD delivers**.
 
 ```
-                       git push
-  you ──► GitHub repo ──────────► Argo CD ──► k3d cluster
-                                     │
-                                     ├── argocd    (manages itself)
-                                     ├── krakend   (Helm chart + values from this repo)
-                                     └── httpbin   (stand-in upstream API)
+[ Local macOS ]
+     │
+     ├── OpenTofu / Terraform  (infra/)
+     │      ├─ kind provider  ─▶ local Kubernetes cluster
+     │      ├─ Helm provider  ─▶ ingress-nginx
+     │      ├─ Helm provider  ─▶ Argo CD
+     │      └─ Helm provider  ─▶ root Application  ──┐  (the hand-off)
+     │                                               │
+     └── Git repository (GitOps core) ◀──────────────┘
+            └─ clusters/poc  (app-of-apps chart)
+                   ├─ Argo CD    (manages its own installation)
+                   ├─ KrakenD    (upstream Helm chart, pinned)
+                   └─ httpbin    (app-services Helm chart)
 ```
+
+Terraform stops at the root Application. Everything else — including Argo CD's own
+upgrade path — is pulled from this repository.
 
 ## Layout
 
 | Path | What it is |
 |------|------------|
-| `bootstrap/k3d/cluster.yaml` | The cluster itself: k3s version, node count, published ports |
-| `bootstrap/root-app.yaml` | The single `kubectl apply` of the whole POC — the "app of apps" |
-| `clusters/poc/` | One Argo CD `Application` per workload, plus the `AppProject` |
-| `platform/argocd/values.yaml` | Argo CD's own Helm values (used by the bootstrap **and** by Argo CD itself) |
+| `infra/` | OpenTofu: the cluster, ingress controller, Argo CD, and the root Application |
+| `infra/charts/argocd-bootstrap/` | One-template chart holding the root Application (the hand-off point) |
+| `infra/values/ingress-nginx.yaml` | Ingress controller values (kind-specific host ports) |
+| `clusters/poc/` | App-of-apps **chart**: one Argo CD `Application` per workload, plus the `AppProject` |
+| `platform/argocd/values.yaml` | Argo CD's own Helm values — used by the Terraform install **and** by Argo CD itself |
 | `apps/krakend/values.yaml` | KrakenD Helm values **and** the gateway configuration (routes, backends, rate limits) |
-| `apps/httpbin/` | Plain manifests (Kustomize) for the demo upstream API |
-| `scripts/set-repo-url.sh` | Rewrites the Git URL across the Applications |
+| `apps/httpbin/` | Helm chart for the demo upstream API |
 
-Everything under `clusters/poc/` is discovered recursively by the root Application, so
-adding a workload means adding one file there — no further `kubectl` involved.
+The Git URL is configured in exactly one place — `infra/terraform.tfvars`. Terraform
+passes it to the root Application, which passes it down to every child Application as
+a chart parameter.
 
 ## Prerequisites
 
-`docker`, `k3d`, `kubectl`, `helm` (and optionally the `argocd` CLI):
-
 ```bash
-brew install k3d kubernetes-cli helm argocd
+brew install opentofu kind kubernetes-cli helm
 ```
+
+Docker must be running.
 
 ## Run it
 
 ```bash
-make repo-url REPO_URL=https://github.com/YOUR-ORG/krakend-gitops.git
-git commit -am "point at my repo" && git push
+cp infra/terraform.tfvars.example infra/terraform.tfvars   # point it at your fork
+make init
 make up
 ```
 
-`make up` creates the cluster, installs Argo CD, and applies the root Application.
-From that point Argo CD pulls everything else from Git.
+`make up` creates the cluster, installs ingress-nginx and Argo CD, and creates the
+root Application. Roughly two minutes later Argo CD has reconciled the rest.
 
 ```bash
 make status     # what Argo CD thinks of the world
 make password   # initial admin password (user: admin)
 make ui         # http://argocd.localhost:8080
 make smoke      # call the gateway through the ingress
-make down       # delete the cluster
+make lint       # render everything locally, no cluster needed
+make down       # destroy the cluster
 ```
 
-The ingress hostnames resolve to `127.0.0.1` on macOS by default. If your resolver
-disagrees, add them to `/etc/hosts`:
+`*.localhost` resolves to `127.0.0.1` on macOS. If your resolver disagrees, add:
 
 ```
 127.0.0.1 argocd.localhost api.localhost
@@ -67,12 +74,12 @@ disagrees, add them to `/etc/hosts`:
 
 ## The gateway
 
-`apps/krakend/values.yaml` holds both the Helm values and the KrakenD configuration.
-Two endpoints are exposed:
+`apps/krakend/values.yaml` holds both the Helm values and the KrakenD configuration:
 
 | Endpoint | Behaviour |
 |----------|-----------|
 | `GET /v1/uuid` | Straight proxy to the upstream `/uuid` |
+| `GET /v1/status/{code}` | URL parameter forwarded to the upstream, response passed through untouched |
 | `GET /v1/profile` | Aggregates two upstream calls (`/uuid` + `/headers`) into one JSON response, rate limited to 20 req/s |
 | `GET /__health` | KrakenD's built-in health endpoint (used by the probes) |
 
@@ -91,18 +98,27 @@ across environments by swapping only that file.
 3. Argo CD syncs within ~30s (`timeout.reconciliation`), the chart hashes the
    ConfigMaps into the pod annotations, and KrakenD rolls out with the new config.
 
-`make lint` renders every manifest locally — including the pinned upstream chart — so
-a bad change fails before it reaches the cluster.
+No `kubectl`, no `helm`, no `tofu` — a route change is a pull request.
 
-## Notes for going beyond the POC
+## Design notes
 
+- **Why kind and not k3d.** The diagram allows either. The kind provider
+  (`tehcyx/kind`) is actively maintained; every k3d provider on the registry had its
+  last release in 2023 or earlier. kind ships no ingress controller, hence the
+  explicit `ingress-nginx` release — which is arguably the better demonstration of the
+  Helm provider anyway.
+- **Why Terraform installs Argo CD at all.** Something has to create the thing that
+  reads Git. Immediately afterwards `clusters/poc/templates/argocd.yaml` takes over,
+  reading the *same* values file, so the two cannot drift.
 - **Chart pinning.** The KrakenD chart is community-maintained and consumed straight
-  from Git at a fixed commit (`clusters/poc/krakend.yaml`), so upstream changes can
-  never reach the cluster unreviewed. Bump the SHA in a pull request.
+  from Git at a fixed commit (`clusters/poc/values.yaml`). Bump the SHA in a pull
+  request; upstream changes can never reach the cluster unreviewed.
+- **State.** The OpenTofu state is local (`infra/terraform.tfstate`, gitignored).
+  A shared environment wants a remote backend — S3, GCS, or Terraform Cloud.
 - **Secrets.** Nothing here needs one. Real gateways do (upstream credentials, JWT
   keys) — add Sealed Secrets or External Secrets before you put any in Git.
 - **TLS.** Argo CD runs with `server.insecure: true` behind a plain HTTP ingress.
   Terminate TLS properly (cert-manager) for anything shared.
 - **Multiple environments.** Copy `clusters/poc/` to `clusters/staging/`, give it its
-  own settings file, and point a second root Application at it — or replace both with
+  own values file, and point a second root Application at it — or replace both with
   an `ApplicationSet`.

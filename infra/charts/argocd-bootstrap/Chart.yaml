@@ -1,0 +1,5 @@
+apiVersion: v2
+name: argocd-bootstrap
+description: The root Argo CD Application — the single hand-off point from Terraform to Git
+type: application
+version: 0.1.0

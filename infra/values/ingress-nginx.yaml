@@ -1,0 +1,25 @@
+# ingress-nginx tuned for kind: the controller binds the node's host ports,
+# which the cluster's extraPortMappings forward to localhost.
+# See https://kind.sigs.k8s.io/docs/user/ingress/
+controller:
+  hostPort:
+    enabled: true
+  service:
+    type: NodePort
+  nodeSelector:
+    ingress-ready: "true"
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Equal
+      effect: NoSchedule
+  publishService:
+    enabled: false
+  watchIngressWithoutClass: true
+  # A single-replica local controller does not need the validating webhook,
+  # and skipping it removes a race during cluster creation.
+  admissionWebhooks:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi

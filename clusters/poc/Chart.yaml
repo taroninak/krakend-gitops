@@ -1,0 +1,5 @@
+apiVersion: v2
+name: poc-cluster
+description: Everything Argo CD manages in the POC cluster — one Application per workload
+type: application
+version: 0.1.0
