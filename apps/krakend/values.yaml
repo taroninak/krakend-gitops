@@ -1,17 +1,21 @@
-# Helm values for the KrakenD gateway.
-# Chart: https://github.com/krakend/contrib-helm-chart (pinned in clusters/poc/krakend.yaml)
+# Deployment settings for the gateway.
 #
-# The gateway configuration itself lives here too, so a route change is an
-# ordinary pull request: merge to main -> Argo CD syncs -> KrakenD rolls out
-# (the chart hashes the ConfigMaps into the pod annotations, so the pods
-# restart automatically when the config changes).
+# The gateway configuration itself is NOT here — it lives in
+# config/krakend.json as ordinary JSON, so editors, `jq` and `krakend check`
+# all understand it. The chart loads that file into a ConfigMap and hashes it
+# into the pod annotations, so editing it rolls the pods.
 
 replicaCount: 2
 
 image:
-  registry: docker.io
   repository: devopsfaith/krakend
   tag: "2.9.4"
+  pullPolicy: IfNotPresent
+
+# Path of the config file inside the chart, and where it is mounted.
+config:
+  file: config/krakend.json
+  mountPath: /etc/krakend
 
 service:
   type: ClusterIP
@@ -21,11 +25,17 @@ service:
 ingress:
   enabled: true
   className: nginx
+  annotations: {}
   hosts:
     - host: api.localhost
       paths:
         - path: /
           pathType: Prefix
+  tls: []
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
 
 resources:
   requests:
@@ -34,173 +44,6 @@ resources:
   limits:
     memory: 256Mi
 
-podDisruptionBudget:
-  enabled: true
-  minAvailable: 1
-
-krakend:
-  # Values that differ per environment live in the settings file, so the same
-  # gateway config can be promoted from poc -> staging -> prod unchanged.
-  # KrakenD's flexible configuration exposes settings/service.json as `.service`.
-  settings:
-    service.json: |-
-      {
-        "environment": "poc",
-        "backend_host": "http://httpbin.demo.svc.cluster.local:8080",
-        "users_host": "http://users-api.demo.svc.cluster.local:8080",
-        "orders_host": "http://orders-api.demo.svc.cluster.local:8080",
-        "jwk_url": "http://keycloak-keycloakx-http.iam.svc.cluster.local/realms/poc/protocol/openid-connect/certs",
-        "token_issuer": "http://keycloak.localhost:8080/realms/poc",
-        "timeout": "3s",
-        "cache_ttl": "0s",
-        "output_encoding": "json"
-      }
-
-  # The chart ships example partials; blank them out so the ConfigMap only
-  # contains what this POC actually uses. Partials and templates are the
-  # mechanism for splitting a large gateway config across files.
-  partials:
-    input_headers.tmpl: ""
-    rate_limit_backend.tmpl: ""
-    endpoints.tmpl: ""
-
-  # The complete gateway configuration (rendered by KrakenD at startup with
-  # the settings above).
-  config: |-
-    {
-      "$schema": "https://www.krakend.io/schema/v3.json",
-      "version": 3,
-      "name": "krakend-poc ({{ .service.environment }})",
-      "port": 8080,
-      "timeout": "{{ .service.timeout }}",
-      "cache_ttl": "{{ .service.cache_ttl }}",
-      "output_encoding": "{{ .service.output_encoding }}",
-      "extra_config": {
-        "telemetry/logging": {
-          "level": "INFO",
-          "stdout": true
-        },
-        "router": {
-          "logger_skip_paths": ["/__health"]
-        }
-      },
-      "endpoints": [
-        {
-          "endpoint": "/v1/uuid",
-          "method": "GET",
-          "output_encoding": "json",
-          "input_headers": ["Content-Type", "X-Request-Id"],
-          "backend": [
-            {
-              "url_pattern": "/uuid",
-              "encoding": "json",
-              "host": ["{{ .service.backend_host }}"]
-            }
-          ]
-        },
-        {
-          "endpoint": "/v1/status/{code}",
-          "method": "GET",
-          "output_encoding": "no-op",
-          "backend": [
-            {
-              "url_pattern": "/status/{code}",
-              "encoding": "no-op",
-              "host": ["{{ .service.backend_host }}"]
-            }
-          ]
-        },
-        {
-          "@comment": "The two upstreams on their own, so each half of the merge below can be inspected directly.",
-          "endpoint": "/v1/users/{id}",
-          "method": "GET",
-          "output_encoding": "json",
-          "backend": [
-            {
-              "url_pattern": "/users/{id}",
-              "encoding": "json",
-              "host": ["{{ .service.users_host }}"]
-            }
-          ]
-        },
-        {
-          "endpoint": "/v1/orders/{id}",
-          "method": "GET",
-          "output_encoding": "json",
-          "backend": [
-            {
-              "url_pattern": "/orders/{id}",
-              "encoding": "json",
-              "host": ["{{ .service.orders_host }}"]
-            }
-          ]
-        },
-        {
-          "@comment": "Two different upstreams, one response: KrakenD calls both in parallel and merges the JSON objects. No `group` key, so the keys land side by side at the top level.",
-          "endpoint": "/v1/customer/{id}",
-          "method": "GET",
-          "output_encoding": "json",
-          "backend": [
-            {
-              "url_pattern": "/users/{id}",
-              "encoding": "json",
-              "host": ["{{ .service.users_host }}"]
-            },
-            {
-              "url_pattern": "/orders/{id}",
-              "encoding": "json",
-              "host": ["{{ .service.orders_host }}"]
-            }
-          ]
-        },
-        {
-          "endpoint": "/v1/protected",
-          "method": "GET",
-          "output_encoding": "json",
-          "extra_config": {
-            "auth/validator": {
-              "@comment": "Rejects anything without a valid RS256 token issued by the poc realm in Keycloak",
-              "alg": "RS256",
-              "jwk_url": "{{ .service.jwk_url }}",
-              "issuer": "{{ .service.token_issuer }}",
-              "audience": ["krakend"],
-              "cache": true,
-              "cache_duration": 900,
-              "disable_jwk_security": true
-            }
-          },
-          "backend": [
-            {
-              "url_pattern": "/uuid",
-              "encoding": "json",
-              "host": ["{{ .service.backend_host }}"]
-            }
-          ]
-        },
-        {
-          "endpoint": "/v1/profile",
-          "method": "GET",
-          "output_encoding": "json",
-          "extra_config": {
-            "qos/ratelimit/router": {
-              "max_rate": 20,
-              "capacity": 20
-            }
-          },
-          "backend": [
-            {
-              "url_pattern": "/uuid",
-              "encoding": "json",
-              "group": "identity",
-              "host": ["{{ .service.backend_host }}"]
-            },
-            {
-              "url_pattern": "/headers",
-              "encoding": "json",
-              "group": "request",
-              "host": ["{{ .service.backend_host }}"]
-            }
-          ]
-        }
-      ]
-    }
+nodeSelector: {}
+tolerations: []
+affinity: {}

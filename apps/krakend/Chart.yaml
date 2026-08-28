@@ -1,0 +1,6 @@
+apiVersion: v2
+name: krakend
+description: The KrakenD API gateway, with its configuration kept as a plain JSON file
+type: application
+version: 0.1.0
+appVersion: "2.9.4"

@@ -7,7 +7,6 @@ spec:
   description: KrakenD GitOps proof of concept
   sourceRepos:
     - {{ .Values.repoURL | quote }}
-    - {{ .Values.krakend.chartRepo | quote }}
     - https://argoproj.github.io/argo-helm
     - https://codecentric.github.io/helm-charts
   destinations:

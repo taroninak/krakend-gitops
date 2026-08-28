@@ -15,7 +15,7 @@ A local, disposable stack that follows the standard split: **OpenTofu provisions
      └── Git repository (GitOps core) ◀──────────────┘
             └─ clusters/poc  (app-of-apps chart)
                    ├─ Argo CD    (manages its own installation)
-                   ├─ KrakenD    (upstream Helm chart, pinned)
+                   ├─ KrakenD    (chart + krakend.json, both in this repo)
                    ├─ Keycloak   (umbrella chart: keycloakx + PostgreSQL + realm)
                    ├─ users-api  ┐ one chart, two releases —
                    ├─ orders-api ┘ the pair KrakenD merges
@@ -34,7 +34,8 @@ upgrade path — is pulled from this repository.
 | `infra/values/ingress-nginx.yaml` | Ingress controller values (kind-specific host ports) |
 | `clusters/poc/` | App-of-apps **chart**: one Argo CD `Application` per workload, plus the `AppProject` |
 | `platform/argocd/values.yaml` | Argo CD's own Helm values — used by the Terraform install **and** by Argo CD itself |
-| `apps/krakend/values.yaml` | KrakenD Helm values **and** the gateway configuration (routes, backends, rate limits) |
+| `apps/krakend/config/krakend.json` | The gateway configuration: routes, backends, rate limits, JWT validation |
+| `apps/krakend/` | A small chart that mounts that file; `values.yaml` holds only deployment settings |
 | `apps/keycloak/` | Umbrella chart: the upstream `keycloakx` chart, its PostgreSQL, and the realm |
 | `apps/demo-api/` | One chart, two value files: the two upstreams KrakenD merges |
 | `apps/httpbin/` | Helm chart for the demo upstream API |
@@ -83,7 +84,10 @@ make down               # destroy the cluster
 
 ## The gateway
 
-`apps/krakend/values.yaml` holds both the Helm values and the KrakenD configuration:
+The gateway configuration is an ordinary JSON file — `apps/krakend/config/krakend.json` —
+mounted into the pods by the chart in `apps/krakend/`. Nothing is templated into it, so
+what is in Git is exactly what KrakenD runs, and `jq`, editor schema validation and
+`krakend check` all work on it directly (`make lint` runs that check).
 
 | Endpoint | Behaviour |
 |----------|-----------|
@@ -118,7 +122,7 @@ are defined in `apps/keycloak/files/realm-poc.json` and imported on first start.
 
 KrakenD validates tokens against the realm's JWKS endpoint over the cluster
 network, and checks the issuer and the `krakend` audience — see the
-`auth/validator` block in `apps/krakend/values.yaml`.
+`auth/validator` block in `apps/krakend/config/krakend.json`.
 
 Two things worth knowing:
 
@@ -132,9 +136,11 @@ Two things worth knowing:
   values only reference them by name. The client secret is never stored at all —
   `scripts/get-token.sh` reads it from the admin API when needed.
 
-Environment-specific values (backend host, timeouts) live in the `krakend.settings`
-block as KrakenD *flexible configuration*, so the same gateway config can be promoted
-across environments by swapping only that file.
+Upstream addresses are in-cluster service names, so the file is per-environment.
+If you later need one configuration promoted across several clusters, KrakenD's
+[flexible configuration](https://www.krakend.io/docs/configuration/flexible-config/)
+lets you keep the shared parts in one file and the per-environment values in another —
+the chart would then mount a settings directory alongside the config.
 
 ### Merging two services into one response
 
@@ -159,10 +165,10 @@ under their own name instead of being flattened.
 
 ### Changing a route
 
-1. Edit `apps/krakend/values.yaml`
+1. Edit `apps/krakend/config/krakend.json`
 2. `git push`
 3. Argo CD syncs within ~30s (`timeout.reconciliation`), the chart hashes the
-   ConfigMaps into the pod annotations, and KrakenD rolls out with the new config.
+   ConfigMap into the pod annotations, and KrakenD rolls out with the new config.
 
 No `kubectl`, no `helm`, no `tofu` — a route change is a pull request.
 
@@ -176,9 +182,11 @@ No `kubectl`, no `helm`, no `tofu` — a route change is a pull request.
 - **Why Terraform installs Argo CD at all.** Something has to create the thing that
   reads Git. Immediately afterwards `clusters/poc/templates/argocd.yaml` takes over,
   reading the *same* values file, so the two cannot drift.
-- **Chart pinning.** The KrakenD chart is community-maintained and consumed straight
-  from Git at a fixed commit (`clusters/poc/values.yaml`). Bump the SHA in a pull
-  request; upstream changes can never reach the cluster unreviewed.
+- **The KrakenD chart is ours.** The community chart's last release was in 2024 and it
+  can only read its config from inside its own package, which is what pushed the
+  gateway config into a YAML string. `apps/krakend/` is ~120 lines of templates and
+  keeps the config a real file. Keycloak still uses its upstream chart, pinned as a
+  dependency in `apps/keycloak/Chart.yaml`.
 - **State.** The OpenTofu state is local (`infra/terraform.tfstate`, gitignored).
   A shared environment wants a remote backend — S3, GCS, or Terraform Cloud.
 - **Secrets.** Keycloak's passwords are generated by OpenTofu and applied directly

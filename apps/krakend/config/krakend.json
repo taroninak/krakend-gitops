@@ -1,0 +1,134 @@
+{
+  "$schema": "https://www.krakend.io/schema/v3.json",
+  "version": 3,
+  "name": "krakend-poc",
+  "port": 8080,
+  "timeout": "3s",
+  "cache_ttl": "0s",
+  "output_encoding": "json",
+  "extra_config": {
+    "telemetry/logging": {
+      "level": "INFO",
+      "stdout": true
+    },
+    "router": {
+      "logger_skip_paths": ["/__health"]
+    }
+  },
+  "endpoints": [
+    {
+      "endpoint": "/v1/uuid",
+      "method": "GET",
+      "output_encoding": "json",
+      "input_headers": ["Content-Type", "X-Request-Id"],
+      "backend": [
+        {
+          "url_pattern": "/uuid",
+          "encoding": "json",
+          "host": ["http://httpbin.demo.svc.cluster.local:8080"]
+        }
+      ]
+    },
+    {
+      "endpoint": "/v1/status/{code}",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "backend": [
+        {
+          "url_pattern": "/status/{code}",
+          "encoding": "no-op",
+          "host": ["http://httpbin.demo.svc.cluster.local:8080"]
+        }
+      ]
+    },
+    {
+      "endpoint": "/v1/users/{id}",
+      "method": "GET",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/users/{id}",
+          "encoding": "json",
+          "host": ["http://users-api.demo.svc.cluster.local:8080"]
+        }
+      ]
+    },
+    {
+      "endpoint": "/v1/orders/{id}",
+      "method": "GET",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/orders/{id}",
+          "encoding": "json",
+          "host": ["http://orders-api.demo.svc.cluster.local:8080"]
+        }
+      ]
+    },
+    {
+      "endpoint": "/v1/customer/{id}",
+      "method": "GET",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/users/{id}",
+          "encoding": "json",
+          "host": ["http://users-api.demo.svc.cluster.local:8080"]
+        },
+        {
+          "url_pattern": "/orders/{id}",
+          "encoding": "json",
+          "host": ["http://orders-api.demo.svc.cluster.local:8080"]
+        }
+      ]
+    },
+    {
+      "endpoint": "/v1/protected",
+      "method": "GET",
+      "output_encoding": "json",
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "jwk_url": "http://keycloak-keycloakx-http.iam.svc.cluster.local/realms/poc/protocol/openid-connect/certs",
+          "issuer": "http://keycloak.localhost:8080/realms/poc",
+          "audience": ["krakend"],
+          "cache": true,
+          "cache_duration": 900,
+          "disable_jwk_security": true
+        }
+      },
+      "backend": [
+        {
+          "url_pattern": "/uuid",
+          "encoding": "json",
+          "host": ["http://httpbin.demo.svc.cluster.local:8080"]
+        }
+      ]
+    },
+    {
+      "endpoint": "/v1/profile",
+      "method": "GET",
+      "output_encoding": "json",
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 20,
+          "capacity": 20
+        }
+      },
+      "backend": [
+        {
+          "url_pattern": "/uuid",
+          "encoding": "json",
+          "group": "identity",
+          "host": ["http://httpbin.demo.svc.cluster.local:8080"]
+        },
+        {
+          "url_pattern": "/headers",
+          "encoding": "json",
+          "group": "request",
+          "host": ["http://httpbin.demo.svc.cluster.local:8080"]
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,8 @@
-# KrakenD API gateway, installed from the community Helm chart.
+# The KrakenD API gateway.
 #
-# Two sources: the chart comes from its upstream Git repository (pinned to a
-# commit), the values come from this repository via the `$values` reference.
+# Chart and configuration both live in this repository: apps/krakend/ holds a
+# small chart, and the gateway config is the plain JSON file it mounts
+# (apps/krakend/config/krakend.json).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -9,17 +10,12 @@ metadata:
   namespace: {{ .Values.argocdNamespace }}
 spec:
   project: poc
-  sources:
-    - repoURL: {{ .Values.krakend.chartRepo | quote }}
-      targetRevision: {{ .Values.krakend.chartRef | quote }}
-      path: .
-      helm:
-        releaseName: krakend
-        valueFiles:
-          - $values/apps/krakend/values.yaml
-    - repoURL: {{ .Values.repoURL | quote }}
-      targetRevision: {{ .Values.targetRevision | quote }}
-      ref: values
+  source:
+    repoURL: {{ .Values.repoURL | quote }}
+    targetRevision: {{ .Values.targetRevision | quote }}
+    path: apps/krakend
+    helm:
+      releaseName: krakend
   destination:
     server: https://kubernetes.default.svc
     namespace: {{ .Values.krakend.namespace }}

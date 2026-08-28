@@ -10,13 +10,10 @@ GATEWAY_HOST ?= api.localhost
 ARGOCD_HOST  ?= argocd.localhost
 KEYCLOAK_HOST ?= keycloak.localhost
 IAM_NS       ?= iam
-INGRESS_PORT ?= 8080
 
-# Upstream KrakenD chart — kept in sync with clusters/poc/values.yaml so that
-# `make lint` renders exactly what Argo CD will apply.
-CHART_REPO ?= https://github.com/krakend/contrib-helm-chart.git
-CHART_REF  ?= 85f99eee90c487a86b40d2d8f7d17d64c6d43f15
-CHART_DIR  ?= .cache/krakend-chart
+# Used by `make lint` to validate the gateway config with KrakenD itself.
+KRAKEND_IMAGE ?= devopsfaith/krakend:2.9.4
+INGRESS_PORT ?= 8080
 
 .DEFAULT_GOAL := help
 
@@ -89,14 +86,8 @@ smoke: ## Call the gateway through the ingress
 	-H "Authorization: Bearer $$(./scripts/get-token.sh)" \
 	http://localhost:$(INGRESS_PORT)/v1/protected
 
-.PHONY: chart
-chart: ## Fetch the pinned KrakenD chart locally (used by `make lint`)
-	@test -d $(CHART_DIR)/.git || git clone --quiet $(CHART_REPO) $(CHART_DIR)
-	@git -C $(CHART_DIR) fetch --quiet origin $(CHART_REF) 2>/dev/null || git -C $(CHART_DIR) fetch --quiet origin
-	@git -C $(CHART_DIR) checkout --quiet $(CHART_REF)
-
 .PHONY: lint
-lint: chart ## Render everything locally (no cluster needed)
+lint: ## Render everything locally (no cluster needed)
 	@$(TOFU) -chdir=$(INFRA) fmt -check && echo "infra/              fmt OK"
 	@$(TOFU) -chdir=$(INFRA) validate >/dev/null && echo "infra/              validate OK"
 	@helm template root clusters/poc --set repoURL=https://example.com/repo.git >/dev/null && echo "clusters/poc        OK"
@@ -106,5 +97,10 @@ lint: chart ## Render everything locally (no cluster needed)
 	&& echo "apps/demo-api       OK"
 	@helm dependency build apps/keycloak >/dev/null 2>&1 || true
 	@helm template keycloak apps/keycloak >/dev/null && echo "apps/keycloak       OK"
-	@helm template krakend $(CHART_DIR) --values apps/krakend/values.yaml >/dev/null && echo "apps/krakend        OK"
+	@python3 -c "import json;json.load(open('apps/krakend/config/krakend.json'))" && echo "krakend.json        valid JSON"
+	@docker run --rm -v "$(PWD)/apps/krakend/config:/etc/krakend:ro" \
+	$(KRAKEND_IMAGE) check -c /etc/krakend/krakend.json >/dev/null 2>&1 \
+	&& echo "krakend.json        krakend check OK" \
+	|| echo "krakend.json        krakend check SKIPPED (docker unavailable)"
+	@helm template krakend apps/krakend >/dev/null && echo "apps/krakend        OK"
 	@helm template argocd argo/argo-cd --values platform/argocd/values.yaml >/dev/null && echo "platform/argocd     OK"

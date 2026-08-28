@@ -1,0 +1,11 @@
+# The gateway configuration, read verbatim from config/krakend.json.
+# Nothing is templated into it: what is in Git is what KrakenD runs.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "krakend.name" . }}-config
+  labels:
+    {{- include "krakend.labels" . | nindent 4 }}
+data:
+  {{ include "krakend.configFileName" . }}: |
+{{ .Files.Get .Values.config.file | indent 4 }}

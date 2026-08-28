@@ -11,10 +11,6 @@ argocdNamespace: argocd
 argocdChartVersion: "10.4.0"
 
 krakend:
-  # The community KrakenD chart is consumed straight from Git at a fixed commit,
-  # so an upstream change can never reach the cluster unreviewed.
-  chartRepo: https://github.com/krakend/contrib-helm-chart.git
-  chartRef: 85f99eee90c487a86b40d2d8f7d17d64c6d43f15
   namespace: gateway
 
 httpbin:
