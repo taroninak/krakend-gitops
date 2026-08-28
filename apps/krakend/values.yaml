@@ -1,9 +1,9 @@
 # Deployment settings for the gateway.
 #
-# The gateway configuration itself is NOT here — it lives in
-# config/krakend.json as ordinary JSON, so editors, `jq` and `krakend check`
-# all understand it. The chart loads that file into a ConfigMap and hashes it
-# into the pod annotations, so editing it rolls the pods.
+# The gateway configuration itself is NOT here — it lives under config/ as
+# ordinary JSON files, so editors, `jq` and `krakend check` all understand it.
+# The chart assembles them into the single file KrakenD reads and hashes the
+# result into the pod annotations, so editing any of them rolls the pods.
 
 replicaCount: 2
 
@@ -12,9 +12,12 @@ image:
   tag: "2.9.4"
   pullPolicy: IfNotPresent
 
-# Path of the config file inside the chart, and where it is mounted.
+# The configuration sources, and where the assembled file is mounted.
+# Adding an endpoint group means dropping another file into config/endpoints/.
 config:
-  file: config/krakend.json
+  fileName: krakend.json
+  serviceFile: config/service.json
+  endpointsGlob: config/endpoints/*.json
   mountPath: /etc/krakend
 
 service:

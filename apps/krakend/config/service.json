@@ -1,0 +1,20 @@
+{
+  "$schema": "https://www.krakend.io/schema/v3.json",
+  "version": 3,
+  "name": "krakend-poc",
+  "port": 8080,
+  "timeout": "3s",
+  "cache_ttl": "0s",
+  "output_encoding": "json",
+  "extra_config": {
+    "telemetry/logging": {
+      "level": "INFO",
+      "stdout": true
+    },
+    "router": {
+      "logger_skip_paths": [
+        "/__health"
+      ]
+    }
+  }
+}

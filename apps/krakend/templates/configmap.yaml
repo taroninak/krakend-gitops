@@ -1,5 +1,19 @@
-# The gateway configuration, read verbatim from config/krakend.json.
-# Nothing is templated into it: what is in Git is what KrakenD runs.
+# The gateway configuration, assembled from the JSON files under config/.
+#
+# KrakenD only ever reads one file, so the chart composes it here: the service
+# block from config/service.json, and the endpoints concatenated from every file
+# matching config/endpoints/*.json. Nothing is templated *into* the JSON — the
+# objects are passed through untouched — so what is in Git is what KrakenD runs.
+#
+# Go templates range over maps in sorted key order, so the files are read
+# alphabetically and the output is byte-stable across renders. That matters:
+# a nondeterministic ConfigMap would look like permanent drift to Argo CD.
+{{- $service := .Files.Get .Values.config.serviceFile | fromJson }}
+{{- $endpoints := list }}
+{{- range $path, $_ := .Files.Glob .Values.config.endpointsGlob }}
+  {{- $endpoints = concat $endpoints ($.Files.Get $path | fromJsonArray) }}
+{{- end }}
+{{- $config := merge (dict "endpoints" $endpoints) $service }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8,4 +22,4 @@ metadata:
     {{- include "krakend.labels" . | nindent 4 }}
 data:
   {{ include "krakend.configFileName" . }}: |
-{{ .Files.Get .Values.config.file | indent 4 }}
+{{ toPrettyJson $config | indent 4 }}

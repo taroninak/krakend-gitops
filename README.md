@@ -34,8 +34,9 @@ upgrade path — is pulled from this repository.
 | `infra/values/ingress-nginx.yaml` | Ingress controller values (kind-specific host ports) |
 | `clusters/poc/` | App-of-apps **chart**: one Argo CD `Application` per workload, plus the `AppProject` |
 | `platform/argocd/values.yaml` | Argo CD's own Helm values — used by the Terraform install **and** by Argo CD itself |
-| `apps/krakend/config/krakend.json` | The gateway configuration: routes, backends, rate limits, JWT validation |
-| `apps/krakend/` | A small chart that mounts that file; `values.yaml` holds only deployment settings |
+| `apps/krakend/config/service.json` | Gateway-wide settings: port, timeouts, logging |
+| `apps/krakend/config/endpoints/` | One JSON file per group of routes |
+| `apps/krakend/` | A small chart that assembles those into the file KrakenD reads |
 | `apps/keycloak/` | Umbrella chart: the upstream `keycloakx` chart, its PostgreSQL, and the realm |
 | `apps/demo-api/` | One chart, two value files: the two upstreams KrakenD merges |
 | `apps/httpbin/` | Helm chart for the demo upstream API |
@@ -84,10 +85,28 @@ make down               # destroy the cluster
 
 ## The gateway
 
-The gateway configuration is an ordinary JSON file — `apps/krakend/config/krakend.json` —
-mounted into the pods by the chart in `apps/krakend/`. Nothing is templated into it, so
-what is in Git is exactly what KrakenD runs, and `jq`, editor schema validation and
-`krakend check` all work on it directly (`make lint` runs that check).
+KrakenD reads exactly one configuration file, but that file does not have to be one file
+in Git. The chart assembles it from ordinary JSON:
+
+```
+apps/krakend/config/
+├── service.json          # port, timeouts, logging — everything but the routes
+└── endpoints/
+    ├── customer.json     # /v1/users/{id}, /v1/orders/{id}, /v1/customer/{id}
+    ├── httpbin.json      # /v1/uuid, /v1/status/{code}, /v1/profile
+    └── protected.json    # /v1/protected
+```
+
+Adding a group of routes means dropping another file into `endpoints/` — the glob picks
+it up, no chart change. Nothing is templated *into* the JSON, so what is in Git is
+exactly what KrakenD runs, and `jq` works on every file directly.
+
+`make config` prints the assembled document (KrakenD's own `FC_OUT` equivalent), and
+`make lint` parses each source file and then runs `krakend check` against the assembled
+result.
+
+The files are read alphabetically, so rendering is deterministic — a nondeterministic
+ConfigMap would show up as permanent drift in Argo CD.
 
 | Endpoint | Behaviour |
 |----------|-----------|
@@ -122,7 +141,7 @@ are defined in `apps/keycloak/files/realm-poc.json` and imported on first start.
 
 KrakenD validates tokens against the realm's JWKS endpoint over the cluster
 network, and checks the issuer and the `krakend` audience — see the
-`auth/validator` block in `apps/krakend/config/krakend.json`.
+`auth/validator` block in `apps/krakend/config/endpoints/protected.json`.
 
 Two things worth knowing:
 
@@ -165,7 +184,7 @@ under their own name instead of being flattened.
 
 ### Changing a route
 
-1. Edit `apps/krakend/config/krakend.json`
+1. Edit the relevant file under `apps/krakend/config/`
 2. `git push`
 3. Argo CD syncs within ~30s (`timeout.reconciliation`), the chart hashes the
    ConfigMap into the pod annotations, and KrakenD rolls out with the new config.
@@ -184,8 +203,10 @@ No `kubectl`, no `helm`, no `tofu` — a route change is a pull request.
   reading the *same* values file, so the two cannot drift.
 - **The KrakenD chart is ours.** The community chart's last release was in 2024 and it
   can only read its config from inside its own package, which is what pushed the
-  gateway config into a YAML string. `apps/krakend/` is ~120 lines of templates and
-  keeps the config a real file. Keycloak still uses its upstream chart, pinned as a
+  gateway config into a YAML string. `apps/krakend/` is ~130 lines of templates and
+  keeps the config real JSON files. One caveat: an endpoints file is a JSON *array*,
+  so it does not match the KrakenD v3 schema the way a whole document does —
+  `$schema` lives in `service.json`, and `krakend check` in `make lint` is the net. Keycloak still uses its upstream chart, pinned as a
   dependency in `apps/keycloak/Chart.yaml`.
 - **State.** The OpenTofu state is local (`infra/terraform.tfstate`, gitignored).
   A shared environment wants a remote backend — S3, GCS, or Terraform Cloud.

@@ -16,5 +16,5 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "krakend.configFileName" -}}
-{{- base .Values.config.file -}}
+{{- .Values.config.fileName -}}
 {{- end -}}

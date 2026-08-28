@@ -13,6 +13,7 @@ IAM_NS       ?= iam
 
 # Used by `make lint` to validate the gateway config with KrakenD itself.
 KRAKEND_IMAGE ?= devopsfaith/krakend:2.9.4
+RENDER_DIR    ?= .cache/krakend-render
 INGRESS_PORT ?= 8080
 
 .DEFAULT_GOAL := help
@@ -67,6 +68,10 @@ keycloak-password: ## Print the generated Keycloak admin password
 token: ## Print an access token for the krakend-demo client
 	@./scripts/get-token.sh
 
+.PHONY: config
+config: ## Print the gateway config exactly as the chart assembles it
+	@./scripts/render-krakend-config.sh
+
 .PHONY: smoke
 smoke: ## Call the gateway through the ingress
 	@echo "--- GET /__health"
@@ -97,10 +102,14 @@ lint: ## Render everything locally (no cluster needed)
 	&& echo "apps/demo-api       OK"
 	@helm dependency build apps/keycloak >/dev/null 2>&1 || true
 	@helm template keycloak apps/keycloak >/dev/null && echo "apps/keycloak       OK"
-	@python3 -c "import json;json.load(open('apps/krakend/config/krakend.json'))" && echo "krakend.json        valid JSON"
-	@docker run --rm -v "$(PWD)/apps/krakend/config:/etc/krakend:ro" \
+	@for f in apps/krakend/config/service.json apps/krakend/config/endpoints/*.json; do \
+	python3 -c "import json,sys;json.load(open(sys.argv[1]))" "$$f" || exit 1; done \
+	&& echo "krakend config      every source file is valid JSON"
+	@mkdir -p $(RENDER_DIR)
+	@./scripts/render-krakend-config.sh > $(RENDER_DIR)/krakend.json
+	@docker run --rm -v "$(PWD)/$(RENDER_DIR):/etc/krakend:ro" \
 	$(KRAKEND_IMAGE) check -c /etc/krakend/krakend.json >/dev/null 2>&1 \
-	&& echo "krakend.json        krakend check OK" \
-	|| echo "krakend.json        krakend check SKIPPED (docker unavailable)"
+	&& echo "krakend config      krakend check OK on the assembled file" \
+	|| echo "krakend config      krakend check SKIPPED (docker unavailable)"
 	@helm template krakend apps/krakend >/dev/null && echo "apps/krakend        OK"
 	@helm template argocd argo/argo-cd --values platform/argocd/values.yaml >/dev/null && echo "platform/argocd     OK"

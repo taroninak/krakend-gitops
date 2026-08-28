@@ -1,0 +1,29 @@
+[
+  {
+    "endpoint": "/v1/protected",
+    "method": "GET",
+    "output_encoding": "json",
+    "extra_config": {
+      "auth/validator": {
+        "alg": "RS256",
+        "jwk_url": "http://keycloak-keycloakx-http.iam.svc.cluster.local/realms/poc/protocol/openid-connect/certs",
+        "issuer": "http://keycloak.localhost:8080/realms/poc",
+        "audience": [
+          "krakend"
+        ],
+        "cache": true,
+        "cache_duration": 900,
+        "disable_jwk_security": true
+      }
+    },
+    "backend": [
+      {
+        "url_pattern": "/uuid",
+        "encoding": "json",
+        "host": [
+          "http://httpbin.demo.svc.cluster.local:8080"
+        ]
+      }
+    ]
+  }
+]
