@@ -16,6 +16,9 @@ data:
     server {
       listen {{ .Values.service.port }};
       server_name _;
+      # The base image sets this in the default.conf this file replaces, so it
+      # has to be declared here or try_files resolves against the wrong root.
+      root /usr/share/nginx/html;
 
       location = /healthz {
         default_type application/json;
@@ -33,4 +36,7 @@ data:
         default_type text/html;
         try_files /index.html =404;
       }
+
+      # Anything else on these paths (favicon, etc.) should not fall through
+      # to the gateway; a 404 from here is the honest answer.
     }
