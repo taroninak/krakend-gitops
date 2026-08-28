@@ -46,6 +46,21 @@
           "http://orders-api.demo.svc.cluster.local:8080"
         ]
       }
-    ]
+    ],
+    "extra_config": {
+      "auth/validator": {
+        "@comment": "Accepts the token from the Authorization header or, for browser navigation, from the cookie the login page sets.",
+        "alg": "RS256",
+        "jwk_url": "http://keycloak-keycloakx-http.iam.svc.cluster.local/realms/poc/protocol/openid-connect/certs",
+        "issuer": "http://keycloak.localhost:8080/realms/poc",
+        "audience": [
+          "krakend"
+        ],
+        "cookie_key": "access_token",
+        "cache": true,
+        "cache_duration": 900,
+        "disable_jwk_security": true
+      }
+    }
   }
 ]

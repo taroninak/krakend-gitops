@@ -64,6 +64,14 @@ keycloak-password: ## Print the generated Keycloak admin password
 	@kubectl -n $(IAM_NS) get secret keycloak-admin \
 	-o jsonpath='{.data.KC_BOOTSTRAP_ADMIN_PASSWORD}' | base64 -d; echo
 
+.PHONY: login
+login: ## Open the browser login page (sign in, then the gateway accepts the cookie)
+	@open http://$(GATEWAY_HOST):$(INGRESS_PORT)/login || true
+
+.PHONY: realm-reimport
+realm-reimport: ## Delete the poc realm and re-seed it from Git (DESTROYS realm state: users, clients)
+	@./scripts/realm-reimport.sh
+
 .PHONY: token
 token: ## Print an access token for the krakend-demo client
 	@./scripts/get-token.sh
@@ -80,8 +88,15 @@ smoke: ## Call the gateway through the ingress
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/uuid; echo
 	@echo "--- GET /v1/status/418"
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/status/418
-	@echo "--- GET /v1/customer/42 (users-api + orders-api merged into one object)"
-	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customer/42; echo
+	@echo "--- GET /v1/customer/42 without a token (expect 401)"
+	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customer/42
+	@echo "--- GET /v1/customer/42 with a bearer token (users-api + orders-api merged)"
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' -H "Authorization: Bearer $$(./scripts/get-token.sh)" \
+	http://localhost:$(INGRESS_PORT)/v1/customer/42; echo
+	@echo "--- GET /v1/customer/42 with the token in a cookie (what the browser does)"
+	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' \
+	--cookie "access_token=$$(./scripts/get-token.sh)" \
+	http://localhost:$(INGRESS_PORT)/v1/customer/42
 	@echo "--- GET /v1/profile (two backends aggregated into one response)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/profile; echo
 	@echo "--- GET /v1/protected without a token (expect 401)"
@@ -97,6 +112,7 @@ lint: ## Render everything locally (no cluster needed)
 	@$(TOFU) -chdir=$(INFRA) validate >/dev/null && echo "infra/              validate OK"
 	@helm template root clusters/poc --set repoURL=https://example.com/repo.git >/dev/null && echo "clusters/poc        OK"
 	@helm template httpbin apps/httpbin >/dev/null && echo "apps/httpbin        OK"
+	@helm template portal apps/portal >/dev/null && echo "apps/portal         OK"
 	@helm template users-api apps/demo-api -f apps/demo-api/values-users.yaml >/dev/null \
 	&& helm template orders-api apps/demo-api -f apps/demo-api/values-orders.yaml >/dev/null \
 	&& echo "apps/demo-api       OK"

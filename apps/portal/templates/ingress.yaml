@@ -1,0 +1,26 @@
+{{- if .Values.ingress.enabled }}
+# Claims a couple of paths on the gateway's own host. nginx routes the longest
+# matching prefix, so /login and /callback come here and everything else — every
+# /v1/... route — still goes to KrakenD.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "portal.name" . }}
+  labels:
+    {{- include "portal.labels" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          {{- range .Values.ingress.paths }}
+          - path: {{ . }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "portal.name" $ }}
+                port:
+                  number: {{ $.Values.service.port }}
+          {{- end }}
+    {{- end }}

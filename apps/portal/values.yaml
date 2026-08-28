@@ -1,0 +1,43 @@
+# A static login page, served on the same host as the gateway.
+#
+# Same host matters: the cookie this page sets is only sent back to the origin
+# that set it, and the gateway reads the token from that cookie. Serving the
+# page from api.localhost means a plain browser navigation to
+# http://api.localhost:8080/v1/customer/42 carries the token automatically.
+
+replicaCount: 1
+
+image:
+  repository: nginxinc/nginx-unprivileged
+  tag: "1.29-alpine"
+  pullPolicy: IfNotPresent
+
+service:
+  port: 8080
+
+# Where the page sends the browser to log in, and what it asks for.
+oidc:
+  issuer: http://keycloak.localhost:8080/realms/poc
+  clientId: krakend-browser
+  # Name of the cookie the page sets; must match `cookie_key` in the gateway's
+  # auth/validator block (apps/krakend/config/endpoints/customer.json).
+  cookieName: access_token
+  # Where to send the browser once it has a token.
+  landingPath: /v1/customer/42
+
+ingress:
+  enabled: true
+  className: nginx
+  host: api.localhost
+  # Paths served by this page instead of the gateway. nginx routes the longest
+  # matching prefix, so everything else still reaches KrakenD.
+  paths:
+    - /login
+    - /callback
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    memory: 64Mi

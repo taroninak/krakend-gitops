@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in — KrakenD POC</title>
+  <script src="/login/config.js"></script>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      margin: 0; min-height: 100vh; display: grid; place-items: center;
+      background: Canvas; color: CanvasText;
+    }
+    main { width: min(30rem, 90vw); }
+    h1 { font-size: 1.35rem; margin: 0 0 .25rem; }
+    p.sub { margin: 0 0 1.5rem; opacity: .7; }
+    .card { border: 1px solid color-mix(in srgb, CanvasText 15%, transparent); border-radius: .6rem; padding: 1.25rem; }
+    button, a.button {
+      display: inline-block; font: inherit; font-weight: 600; cursor: pointer;
+      padding: .55rem 1.1rem; border-radius: .4rem; border: 1px solid transparent;
+      background: color-mix(in srgb, CanvasText 88%, Canvas); color: Canvas; text-decoration: none;
+    }
+    a.secondary { background: transparent; color: inherit; border-color: color-mix(in srgb, CanvasText 25%, transparent); }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .87em; }
+    .status { margin-top: 1rem; font-size: .9rem; opacity: .8; }
+    .error { color: #c0392b; white-space: pre-wrap; }
+    dl { display: grid; grid-template-columns: auto 1fr; gap: .3rem .8rem; margin: 1rem 0 0; font-size: .87rem; }
+    dt { opacity: .6; }
+    dd { margin: 0; font-family: ui-monospace, Menlo, monospace; overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>KrakenD POC</h1>
+  <p class="sub">Sign in with Keycloak, then call the gateway from this browser.</p>
+  <div class="card" id="card">
+    <div id="body">Loading…</div>
+    <div class="status" id="status"></div>
+  </div>
+</main>
+
+<script>
+const cfg = window.PORTAL_CONFIG;
+const $body = document.getElementById("body");
+const $status = document.getElementById("status");
+
+const say = (html) => { $body.innerHTML = html; };
+const status = (text, isError) => {
+  $status.textContent = text || "";
+  $status.className = "status" + (isError ? " error" : "");
+};
+
+const readCookie = (name) =>
+  document.cookie.split("; ").find((c) => c.startsWith(name + "="))?.slice(name.length + 1);
+
+const b64url = (bytes) =>
+  btoa(String.fromCharCode(...new Uint8Array(bytes)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+const randomString = () => b64url(crypto.getRandomValues(new Uint8Array(32)));
+
+async function challengeFor(verifier) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  return b64url(digest);
+}
+
+// Decode a JWT payload for display only — the gateway is what actually verifies it.
+function claims(token) {
+  try {
+    const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(part.padEnd(part.length + ((4 - (part.length % 4)) % 4), "=")));
+  } catch { return null; }
+}
+
+async function startLogin() {
+  const verifier = randomString();
+  const state = randomString();
+  sessionStorage.setItem("pkce_verifier", verifier);
+  sessionStorage.setItem("oauth_state", state);
+
+  const url = new URL(cfg.issuer + "/protocol/openid-connect/auth");
+  url.search = new URLSearchParams({
+    client_id: cfg.clientId,
+    response_type: "code",
+    scope: "openid",
+    redirect_uri: location.origin + "/callback",
+    code_challenge: await challengeFor(verifier),
+    code_challenge_method: "S256",
+    state,
+  });
+  location.assign(url);
+}
+
+async function completeLogin() {
+  const params = new URLSearchParams(location.search);
+
+  if (params.get("error")) {
+    say("<p>Keycloak refused the login.</p><p><a class='button' href='/login'>Try again</a></p>");
+    return status(params.get("error") + ": " + (params.get("error_description") || ""), true);
+  }
+  if (params.get("state") !== sessionStorage.getItem("oauth_state")) {
+    say("<p><a class='button' href='/login'>Start over</a></p>");
+    return status("State mismatch — the login did not start in this tab.", true);
+  }
+
+  status("Exchanging the authorization code for a token…");
+  const res = await fetch(cfg.issuer + "/protocol/openid-connect/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: cfg.clientId,
+      code: params.get("code"),
+      redirect_uri: location.origin + "/callback",
+      code_verifier: sessionStorage.getItem("pkce_verifier"),
+    }),
+  });
+
+  if (!res.ok) {
+    say("<p><a class='button' href='/login'>Try again</a></p>");
+    return status("Token request failed (HTTP " + res.status + "):\n" + (await res.text()), true);
+  }
+
+  const token = await res.json();
+  sessionStorage.removeItem("pkce_verifier");
+  sessionStorage.removeItem("oauth_state");
+
+  // The gateway reads the token from this cookie (auth/validator cookie_key).
+  // Same origin as the API, so it rides along on ordinary navigation.
+  document.cookie =
+    cfg.cookieName + "=" + token.access_token +
+    "; path=/; max-age=" + (token.expires_in || 300) + "; SameSite=Lax";
+
+  location.assign(cfg.landingPath);
+}
+
+function showSignedIn(token) {
+  const c = claims(token) || {};
+  const expires = c.exp ? new Date(c.exp * 1000).toLocaleTimeString() : "unknown";
+  say(
+    "<p>Signed in" + (c.preferred_username ? " as <strong>" + c.preferred_username + "</strong>" : "") + ".</p>" +
+    "<p><a class='button' href='" + cfg.landingPath + "'>Call " + cfg.landingPath + "</a> " +
+    "<a class='button secondary' href='#' id='logout'>Log out</a></p>" +
+    "<dl><dt>issuer</dt><dd>" + (c.iss || "—") + "</dd>" +
+    "<dt>audience</dt><dd>" + (Array.isArray(c.aud) ? c.aud.join(", ") : c.aud || "—") + "</dd>" +
+    "<dt>expires</dt><dd>" + expires + "</dd></dl>"
+  );
+  document.getElementById("logout").onclick = (e) => {
+    e.preventDefault();
+    document.cookie = cfg.cookieName + "=; path=/; max-age=0";
+    const url = new URL(cfg.issuer + "/protocol/openid-connect/logout");
+    url.search = new URLSearchParams({
+      client_id: cfg.clientId,
+      post_logout_redirect_uri: location.origin + "/login",
+    });
+    location.assign(url);
+  };
+}
+
+(async () => {
+  try {
+    if (location.pathname.startsWith("/callback")) return await completeLogin();
+
+    const existing = readCookie(cfg.cookieName);
+    if (existing) return showSignedIn(existing);
+
+    say("<p>You are not signed in. The gateway will answer <code>401</code> until you are.</p>" +
+        "<p><button id='go'>Sign in with Keycloak</button></p>");
+    document.getElementById("go").onclick = () => startLogin().catch((e) => status(String(e), true));
+  } catch (e) {
+    status(String(e), true);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+# The page itself is a static file (files/index.html); only the endpoint
+# addresses come from values, injected as a tiny config.js so the HTML stays
+# free of templating.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "portal.name" . }}
+  labels:
+    {{- include "portal.labels" . | nindent 4 }}
+data:
+  config.js: |
+    window.PORTAL_CONFIG = {{ toJson .Values.oidc }};
+  index.html: |
+{{ .Files.Get "files/index.html" | indent 4 }}
+  default.conf: |
+    server {
+      listen {{ .Values.service.port }};
+      server_name _;
+
+      location = /healthz {
+        default_type application/json;
+        return 200 '{"status":"ok"}';
+      }
+
+      location = /login/config.js {
+        default_type application/javascript;
+        alias /usr/share/nginx/html/config.js;
+      }
+
+      # /login and /callback are the same single-page document; the script
+      # decides what to do from location.pathname.
+      location / {
+        default_type text/html;
+        try_files /index.html =404;
+      }
+    }

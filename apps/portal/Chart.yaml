@@ -1,0 +1,5 @@
+apiVersion: v2
+name: portal
+description: Login page that signs you in at Keycloak and hands the gateway a cookie
+type: application
+version: 0.1.0

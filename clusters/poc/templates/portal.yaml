@@ -1,0 +1,25 @@
+# The browser login page. Lives in the gateway namespace because it shares the
+# api.localhost host with KrakenD — same origin, so the cookie it sets is sent
+# on to the gateway.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: portal
+  namespace: {{ .Values.argocdNamespace }}
+spec:
+  project: poc
+  source:
+    repoURL: {{ .Values.repoURL | quote }}
+    targetRevision: {{ .Values.targetRevision | quote }}
+    path: apps/portal
+    helm:
+      releaseName: portal
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.krakend.namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
