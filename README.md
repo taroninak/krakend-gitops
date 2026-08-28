@@ -158,8 +158,18 @@ Create a user once — the realm ships without one:
 
 ```bash
 make keycloak-ui        # admin / `make keycloak-password`
-# realm "poc" -> Users -> Add user -> Credentials -> Set password (turn Temporary off)
 ```
+
+The console opens in the **master** realm and stays there until you switch — a user
+created without switching is a Keycloak administrator, not a user of this API, and
+the login page will reject it. Use the realm dropdown at the top of the sidebar, or
+go straight to the right place:
+
+<http://keycloak.localhost:8080/admin/master/console/#/poc/users>
+
+Add user → Create → **Credentials** → Set password, with *Temporary* switched off
+(a temporary password makes Keycloak demand a change at first login, which this
+demo page does not handle).
 
 Then:
 
