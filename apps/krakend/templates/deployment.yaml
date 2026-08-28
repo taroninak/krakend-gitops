@@ -18,6 +18,11 @@ spec:
         {{- include "krakend.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "krakend.name" . }}
+      # Kubernetes injects legacy service-link variables for every Service in the
+      # namespace: the one for this Service is KRAKEND_PORT=tcp://<ip>:<port>,
+      # which KrakenD reads as an override for its own `port` setting and then
+      # fails to parse. Turning the links off removes the collision entirely.
+      enableServiceLinks: false
       containers:
         - name: krakend
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -29,6 +34,11 @@ spec:
             - "{{ .Values.config.mountPath }}/{{ include "krakend.configFileName" . }}"
             - "-p"
             - {{ .Values.service.targetPort | quote }}
+          env:
+            # Belt and braces: set it explicitly so the value is right even if
+            # service links are re-enabled.
+            - name: KRAKEND_PORT
+              value: {{ .Values.service.targetPort | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.service.targetPort }}
