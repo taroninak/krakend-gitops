@@ -75,6 +75,7 @@ make keycloak-password  # generated Keycloak admin password (user: admin)
 make keycloak-ui        # http://keycloak.localhost:8080
 make token              # access token for the krakend-demo client
 make login              # open the browser login page
+make logout             # sign out (clears the cookie and the Keycloak session)
 make realm-reimport     # re-seed the realm from Git (destroys realm state)
 make smoke              # call the gateway through the ingress
 make lint               # render everything locally, no cluster needed
@@ -182,6 +183,11 @@ client, so you get Keycloak's own login form. On the way back it stores the acce
 token in an `access_token` cookie and sends you to `/v1/customers/42` — after that,
 any `/v1/...` URL works straight from the address bar until the token expires
 (15 minutes).
+
+To sign out, go to <http://api.localhost:8080/logout> (or `make logout`). It clears
+the cookie **and** calls Keycloak's end-session endpoint — clearing only the cookie
+would leave the Keycloak session alive, so the next sign-in would succeed silently
+without asking for a password, which looks like a broken logout.
 
 The page is served by `apps/portal` on **the gateway's own host**: the ingress
 gives `/login` and `/callback` to that pod and everything else to KrakenD. Same

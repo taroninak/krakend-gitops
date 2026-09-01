@@ -131,6 +131,9 @@ async function completeLogin() {
   }
 
   const token = await res.json();
+  // Kept only to pass as id_token_hint on the way out: with it Keycloak logs the
+  // session out directly, without it Keycloak asks the user to confirm.
+  if (token.id_token) sessionStorage.setItem("id_token", token.id_token);
   sessionStorage.removeItem("pkce_verifier");
   sessionStorage.removeItem("oauth_state");
 
@@ -149,26 +152,45 @@ function showSignedIn(token) {
   say(
     "<p>Signed in" + (c.preferred_username ? " as <strong>" + c.preferred_username + "</strong>" : "") + ".</p>" +
     "<p><a class='button' href='" + landingPath + "'>Call " + landingPath + "</a> " +
-    "<a class='button secondary' href='#' id='logout'>Log out</a></p>" +
+    "<a class='button secondary' href='/logout'>Sign out</a></p>" +
     "<dl><dt>issuer</dt><dd>" + (c.iss || "—") + "</dd>" +
     "<dt>audience</dt><dd>" + (Array.isArray(c.aud) ? c.aud.join(", ") : c.aud || "—") + "</dd>" +
     "<dt>expires</dt><dd>" + expires + "</dd></dl>"
   );
-  document.getElementById("logout").onclick = (e) => {
-    e.preventDefault();
-    document.cookie = cfg.cookieName + "=; path=/; max-age=0";
-    const url = new URL(cfg.issuer + "/protocol/openid-connect/logout");
-    url.search = new URLSearchParams({
-      client_id: cfg.clientId,
-      post_logout_redirect_uri: location.origin + "/login",
-    });
-    location.assign(url);
-  };
+}
+
+// Signing out means two things, and doing only the first is a trap: clearing the
+// cookie stops the gateway accepting this browser, but the Keycloak session
+// cookie would still be there, so the next sign-in would silently succeed
+// without ever asking for a password. So we clear ours, then hand over to
+// Keycloak's end-session endpoint to close its own.
+function signOut() {
+  const params = new URLSearchParams(location.search);
+
+  if (params.has("done")) {
+    say("<p>Signed out.</p><p><a class='button' href='/login'>Sign in again</a></p>");
+    return status("The gateway cookie is cleared and the Keycloak session is closed — "
+      + "signing back in will ask for the password again.");
+  }
+
+  const idToken = sessionStorage.getItem("id_token");
+  document.cookie = cfg.cookieName + "=; path=/; max-age=0";
+  sessionStorage.removeItem("id_token");
+  sessionStorage.removeItem("landing_path");
+
+  say("<p>Signing out…</p>");
+  const url = new URL(cfg.issuer + "/protocol/openid-connect/logout");
+  const query = { post_logout_redirect_uri: location.origin + "/logout?done" };
+  if (idToken) query.id_token_hint = idToken;
+  else query.client_id = cfg.clientId;
+  url.search = new URLSearchParams(query);
+  location.assign(url);
 }
 
 (async () => {
   try {
     if (location.pathname.startsWith("/callback")) return await completeLogin();
+    if (location.pathname.startsWith("/logout")) return signOut();
 
     const existing = readCookie(cfg.cookieName);
     if (existing) return showSignedIn(existing);

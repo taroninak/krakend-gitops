@@ -68,6 +68,10 @@ keycloak-password: ## Print the generated Keycloak admin password
 login: ## Open the browser login page (sign in, then the gateway accepts the cookie)
 	@open http://$(GATEWAY_HOST):$(INGRESS_PORT)/login || true
 
+.PHONY: logout
+logout: ## Open the sign-out page (clears the cookie and the Keycloak session)
+	@open http://$(GATEWAY_HOST):$(INGRESS_PORT)/logout || true
+
 .PHONY: realm-reimport
 realm-reimport: ## Delete the poc realm and re-seed it from Git (DESTROYS realm state: users, clients)
 	@./scripts/realm-reimport.sh
