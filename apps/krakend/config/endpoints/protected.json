@@ -18,10 +18,10 @@
     },
     "backend": [
       {
-        "url_pattern": "/uuid",
+        "url_pattern": "/users/42",
         "encoding": "json",
         "host": [
-          "http://httpbin.demo.svc.cluster.local:8080"
+          "http://users-api.demo.svc.cluster.local:8080"
         ]
       }
     ]

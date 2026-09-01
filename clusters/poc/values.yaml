@@ -13,9 +13,6 @@ argocdChartVersion: "10.4.0"
 krakend:
   namespace: gateway
 
-httpbin:
-  namespace: demo
-
 # The two upstream APIs whose responses KrakenD merges into one.
 demoApiNamespace: demo
 demoApis:

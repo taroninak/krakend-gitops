@@ -88,21 +88,21 @@ config: ## Print the gateway config exactly as the chart assembles it
 smoke: ## Call the gateway through the ingress
 	@echo "--- GET /__health"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/__health; echo
-	@echo "--- GET /v1/uuid"
-	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/uuid; echo
-	@echo "--- GET /v1/status/418"
-	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/status/418
+	@echo "--- GET /v1/users/42 (one upstream)"
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/users/42; echo
+	@echo "--- GET /v1/orders/42 (the other upstream)"
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/42; echo
 	@echo "--- GET /v1/customers/42 without a token (expect 401)"
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers/42
-	@echo "--- GET /v1/customers/42 with a bearer token (users-api + orders-api merged)"
+	@echo "--- GET /v1/customers/42 with a bearer token (both upstreams merged flat)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' -H "Authorization: Bearer $$(./scripts/get-token.sh)" \
 	http://localhost:$(INGRESS_PORT)/v1/customers/42; echo
 	@echo "--- GET /v1/customers/42 with the token in a cookie (what the browser does)"
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' \
 	--cookie "access_token=$$(./scripts/get-token.sh)" \
 	http://localhost:$(INGRESS_PORT)/v1/customers/42
-	@echo "--- GET /v1/profile (two backends aggregated into one response)"
-	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/profile; echo
+	@echo "--- GET /v1/profile/42 (same two upstreams, kept nested under groups)"
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/profile/42; echo
 	@echo "--- GET /v1/protected without a token (expect 401)"
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/protected
 	@echo "--- GET /v1/protected with a Keycloak token (expect 200)"
@@ -115,7 +115,6 @@ lint: ## Render everything locally (no cluster needed)
 	@$(TOFU) -chdir=$(INFRA) fmt -check && echo "infra/              fmt OK"
 	@$(TOFU) -chdir=$(INFRA) validate >/dev/null && echo "infra/              validate OK"
 	@helm template root clusters/poc --set repoURL=https://example.com/repo.git >/dev/null && echo "clusters/poc        OK"
-	@helm template httpbin apps/httpbin >/dev/null && echo "apps/httpbin        OK"
 	@helm template portal apps/portal >/dev/null && echo "apps/portal         OK"
 	@helm template users-api apps/demo-api -f apps/demo-api/values-users.yaml >/dev/null \
 	&& helm template orders-api apps/demo-api -f apps/demo-api/values-orders.yaml >/dev/null \

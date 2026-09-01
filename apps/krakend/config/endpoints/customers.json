@@ -62,5 +62,35 @@
         "disable_jwk_security": true
       }
     }
+  },
+  {
+    "@comment": "The other merge style: each backend declares a `group`, so its response stays nested under that name instead of being flattened alongside the other. Compare with /v1/customers/{id}.",
+    "endpoint": "/v1/profile/{id}",
+    "method": "GET",
+    "output_encoding": "json",
+    "extra_config": {
+      "qos/ratelimit/router": {
+        "max_rate": 20,
+        "capacity": 20
+      }
+    },
+    "backend": [
+      {
+        "url_pattern": "/users/{id}",
+        "encoding": "json",
+        "group": "identity",
+        "host": [
+          "http://users-api.demo.svc.cluster.local:8080"
+        ]
+      },
+      {
+        "url_pattern": "/orders/{id}",
+        "encoding": "json",
+        "group": "purchases",
+        "host": [
+          "http://orders-api.demo.svc.cluster.local:8080"
+        ]
+      }
+    ]
   }
 ]

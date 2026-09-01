@@ -15,7 +15,7 @@ spec:
     - server: https://kubernetes.default.svc
       namespace: {{ .Values.krakend.namespace }}
     - server: https://kubernetes.default.svc
-      namespace: {{ .Values.httpbin.namespace }}
+      namespace: {{ .Values.demoApiNamespace }}
     - server: https://kubernetes.default.svc
       namespace: {{ .Values.keycloak.namespace }}
   clusterResourceWhitelist:
