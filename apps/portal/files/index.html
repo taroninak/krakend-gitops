@@ -43,6 +43,13 @@
 <script>
 const cfg = window.PORTAL_CONFIG;
 const $body = document.getElementById("body");
+
+// Where to go once signed in. The ingress appends ?next=<original URI> when it
+// bounces an unauthenticated browser here, so you land back where you aimed.
+// Only same-site paths are honoured — an absolute URL here would be an open
+// redirect.
+const wanted = new URLSearchParams(location.search).get("next");
+const landingPath = wanted && /^\/[^/\\]/.test(wanted) ? wanted : cfg.landingPath;
 const $status = document.getElementById("status");
 
 const say = (html) => { $body.innerHTML = html; };
@@ -78,6 +85,7 @@ async function startLogin() {
   const state = randomString();
   sessionStorage.setItem("pkce_verifier", verifier);
   sessionStorage.setItem("oauth_state", state);
+  sessionStorage.setItem("landing_path", landingPath);
 
   const url = new URL(cfg.issuer + "/protocol/openid-connect/auth");
   url.search = new URLSearchParams({
@@ -132,7 +140,7 @@ async function completeLogin() {
     cfg.cookieName + "=" + token.access_token +
     "; path=/; max-age=" + (token.expires_in || 300) + "; SameSite=Lax";
 
-  location.assign(cfg.landingPath);
+  location.assign(sessionStorage.getItem("landing_path") || cfg.landingPath);
 }
 
 function showSignedIn(token) {
@@ -140,7 +148,7 @@ function showSignedIn(token) {
   const expires = c.exp ? new Date(c.exp * 1000).toLocaleTimeString() : "unknown";
   say(
     "<p>Signed in" + (c.preferred_username ? " as <strong>" + c.preferred_username + "</strong>" : "") + ".</p>" +
-    "<p><a class='button' href='" + cfg.landingPath + "'>Call " + cfg.landingPath + "</a> " +
+    "<p><a class='button' href='" + landingPath + "'>Call " + landingPath + "</a> " +
     "<a class='button secondary' href='#' id='logout'>Log out</a></p>" +
     "<dl><dt>issuer</dt><dd>" + (c.iss || "—") + "</dd>" +
     "<dt>audience</dt><dd>" + (Array.isArray(c.aud) ? c.aud.join(", ") : c.aud || "—") + "</dd>" +
@@ -165,7 +173,8 @@ function showSignedIn(token) {
     const existing = readCookie(cfg.cookieName);
     if (existing) return showSignedIn(existing);
 
-    say("<p>You are not signed in. The gateway will answer <code>401</code> until you are.</p>" +
+    say("<p>You are not signed in. The gateway answers <code>401</code> until you are" +
+        (wanted ? ", which is why <code>" + landingPath + "</code> sent you here" : "") + ".</p>" +
         "<p><button id='go'>Sign in with Keycloak</button></p>");
     document.getElementById("go").onclick = () => startLogin().catch((e) => status(String(e), true));
   } catch (e) {

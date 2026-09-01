@@ -13,6 +13,24 @@ data:
   index.html: |
 {{ .Files.Get "files/index.html" | indent 4 }}
   default.conf: |
+    # ingress-nginx routes the gateway's 401s here (custom-http-errors +
+    # default-backend annotations on the KrakenD ingress) and describes the
+    # original request with X-* headers.
+    #
+    # A browser should be offered the login page; an API client should keep its
+    # honest 401. nginx `if` cannot AND two conditions, so the decision is made
+    # in a map, which is legal here because conf.d files are included inside the
+    # http context.
+    map "$http_x_code::$http_x_format" $send_to_login {
+      default                     0;
+      "~^401::.*text/html"        1;
+    }
+
+    map $http_x_code $upstream_said_401 {
+      default   0;
+      "401"     1;
+    }
+
     server {
       listen {{ .Values.service.port }};
       server_name _;
@@ -33,6 +51,14 @@ data:
       # /login and /callback are the same single-page document; the script
       # decides what to do from location.pathname.
       location / {
+        # Unauthenticated browser navigation: send them somewhere useful.
+        if ($send_to_login) {
+          return 302 /login?next=$http_x_original_uri;
+        }
+        # Unauthenticated API call: pass the gateway's answer through unchanged.
+        if ($upstream_said_401) {
+          return 401;
+        }
         default_type text/html;
         try_files /index.html =404;
       }

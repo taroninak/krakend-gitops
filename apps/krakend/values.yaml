@@ -28,7 +28,12 @@ service:
 ingress:
   enabled: true
   className: nginx
-  annotations: {}
+  annotations:
+    # Hand 401s to the portal pod, which redirects browsers to the login page
+    # and leaves API clients with their 401. Only 401 is intercepted — 404s and
+    # everything else still come straight from the gateway.
+    nginx.ingress.kubernetes.io/custom-http-errors: "401"
+    nginx.ingress.kubernetes.io/default-backend: portal
   hosts:
     - host: api.localhost
       paths:
