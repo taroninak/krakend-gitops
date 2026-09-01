@@ -28,7 +28,7 @@
     ]
   },
   {
-    "endpoint": "/v1/customer/{id}",
+    "endpoint": "/v1/customers/{id}",
     "method": "GET",
     "output_encoding": "json",
     "backend": [
