@@ -96,7 +96,7 @@ in Git. The chart assembles it from ordinary JSON:
 apps/krakend/config/
 ├── service.json          # port, timeouts, logging — everything but the routes
 └── endpoints/
-    ├── customer.json     # /v1/users/{id}, /v1/orders/{id}, /v1/customer/{id}
+    ├── customers.json    # /v1/users/{id}, /v1/orders/{id}, /v1/customers/{id}
     ├── httpbin.json      # /v1/uuid, /v1/status/{code}, /v1/profile
     └── protected.json    # /v1/protected
 ```
@@ -119,14 +119,14 @@ ConfigMap would show up as permanent drift in Argo CD.
 | `GET /v1/profile` | Aggregates two upstream calls (`/uuid` + `/headers`) into one JSON response, rate limited to 20 req/s |
 | `GET /v1/users/{id}` | The users service on its own |
 | `GET /v1/orders/{id}` | The orders service on its own |
-| `GET /v1/customer/{id}` | Calls **two different services** in parallel and merges their JSON into one object. Requires a Keycloak token, from either the `Authorization` header or a cookie |
+| `GET /v1/customers/{id}` | Calls **two different services** in parallel and merges their JSON into one object. Requires a Keycloak token, from either the `Authorization` header or a cookie |
 | `GET /v1/protected` | Requires a valid RS256 token issued by the Keycloak `poc` realm, with the `krakend` audience |
 | `GET /__health` | KrakenD's built-in health endpoint (used by the probes) |
 
 ```bash
 # One request, two upstreams, one merged object (needs a token)
 curl -H 'Host: api.localhost' -H "Authorization: Bearer $(make -s token)" \
-  http://localhost:8080/v1/customer/42
+  http://localhost:8080/v1/customers/42
 # => {"customer_id":"42","name":"Ada Lovelace","email":"...","tier":"gold",
 #     "order_count":2,"lifetime_value":55.5,"orders":[...]}
 
@@ -150,7 +150,7 @@ network, and checks the issuer and the `krakend` audience — see the
 
 ### Logging in from a browser
 
-`/v1/customer/{id}` accepts the token from a **cookie** as well as from the
+`/v1/customers/{id}` accepts the token from a **cookie** as well as from the
 `Authorization` header (`cookie_key` in its `auth/validator` block), which is what
 makes a normal browser navigation work.
 
@@ -179,7 +179,7 @@ make login              # opens http://api.localhost:8080/login
 
 The page runs authorization code + PKCE against the `krakend-browser` public
 client, so you get Keycloak's own login form. On the way back it stores the access
-token in an `access_token` cookie and sends you to `/v1/customer/42` — after that,
+token in an `access_token` cookie and sends you to `/v1/customers/42` — after that,
 any `/v1/...` URL works straight from the address bar until the token expires
 (15 minutes).
 
@@ -224,7 +224,7 @@ gateway calls both in parallel and, because neither backend declares a `group`,
 lays their keys side by side in a single object:
 
 ```
-GET /v1/customer/42
+GET /v1/customers/42
      ├── users-api  /users/42   {"customer_id","name","email","tier"}
      └── orders-api /orders/42  {"order_count","lifetime_value","orders"}
 ```

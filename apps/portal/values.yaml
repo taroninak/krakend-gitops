@@ -3,7 +3,7 @@
 # Same host matters: the cookie this page sets is only sent back to the origin
 # that set it, and the gateway reads the token from that cookie. Serving the
 # page from api.localhost means a plain browser navigation to
-# http://api.localhost:8080/v1/customer/42 carries the token automatically.
+# http://api.localhost:8080/v1/customers/42 carries the token automatically.
 
 replicaCount: 1
 
@@ -20,10 +20,10 @@ oidc:
   issuer: http://keycloak.localhost:8080/realms/poc
   clientId: krakend-browser
   # Name of the cookie the page sets; must match `cookie_key` in the gateway's
-  # auth/validator block (apps/krakend/config/endpoints/customer.json).
+  # auth/validator block (apps/krakend/config/endpoints/customers.json).
   cookieName: access_token
   # Where to send the browser once it has a token.
-  landingPath: /v1/customer/42
+  landingPath: /v1/customers/42
 
 ingress:
   enabled: true

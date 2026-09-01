@@ -88,15 +88,15 @@ smoke: ## Call the gateway through the ingress
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/uuid; echo
 	@echo "--- GET /v1/status/418"
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/status/418
-	@echo "--- GET /v1/customer/42 without a token (expect 401)"
-	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customer/42
-	@echo "--- GET /v1/customer/42 with a bearer token (users-api + orders-api merged)"
+	@echo "--- GET /v1/customers/42 without a token (expect 401)"
+	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers/42
+	@echo "--- GET /v1/customers/42 with a bearer token (users-api + orders-api merged)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' -H "Authorization: Bearer $$(./scripts/get-token.sh)" \
-	http://localhost:$(INGRESS_PORT)/v1/customer/42; echo
-	@echo "--- GET /v1/customer/42 with the token in a cookie (what the browser does)"
+	http://localhost:$(INGRESS_PORT)/v1/customers/42; echo
+	@echo "--- GET /v1/customers/42 with the token in a cookie (what the browser does)"
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' \
 	--cookie "access_token=$$(./scripts/get-token.sh)" \
-	http://localhost:$(INGRESS_PORT)/v1/customer/42
+	http://localhost:$(INGRESS_PORT)/v1/customers/42
 	@echo "--- GET /v1/profile (two backends aggregated into one response)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/profile; echo
 	@echo "--- GET /v1/protected without a token (expect 401)"
