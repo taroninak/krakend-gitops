@@ -1,11 +1,45 @@
 nameOverride: users-api
 
-# The customer record. Note the keys: they are disjoint from the ones the orders
-# API returns, so KrakenD can merge both responses into a single flat object.
 routes:
-  - path: /users
+  # The id list the gateway reads first. The ids are an OBJECT, not an array, on
+  # purpose: KrakenD's sequential proxy can follow dot notation into nested
+  # objects ({resp0_ids.first}) but cannot index into arrays — "fields must be
+  # objects". An array here would be unreachable from the gateway config.
+  - path: /customer-ids
+    exact: true
+    response:
+      segment: gold
+      count: 3
+      ids:
+        first: "42"
+        second: "43"
+        third: "44"
+      # Seeded empty on purpose. The gateway's flatmap moves each fetched user
+      # into this list; moving into a key that does not already hold a list
+      # produces an object with "0"/"1"/"2" keys instead of a JSON array.
+      customers: []
+
+  # One record per id, so a fan-out to three ids returns three different people.
+  - path: /users/42
+    exact: true
     response:
       customer_id: "42"
       name: Ada Lovelace
       email: ada@example.com
       tier: gold
+
+  - path: /users/43
+    exact: true
+    response:
+      customer_id: "43"
+      name: Grace Hopper
+      email: grace@example.com
+      tier: gold
+
+  - path: /users/44
+    exact: true
+    response:
+      customer_id: "44"
+      name: Alan Turing
+      email: alan@example.com
+      tier: silver

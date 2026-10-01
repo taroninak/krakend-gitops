@@ -64,6 +64,91 @@
     }
   },
   {
+    "@comment": "Fan-out driven by a response body: backend 0 returns the ids, and each following backend substitutes one of them into its path via {resp0_ids.*}. Two rules that cost an afternoon to find: backend 0 must NOT declare a `group` (a group nests its data out of reach of resp0_*), and the flatmap target must already hold a list (backend 0 seeds `customers: []`) or the moves build an object keyed \"0\",\"1\",\"2\" instead of an array.",
+    "endpoint": "/v1/customers",
+    "method": "GET",
+    "output_encoding": "json",
+    "extra_config": {
+      "proxy": {
+        "sequential": true,
+        "flatmap_filter": [
+          {
+            "type": "move",
+            "args": [
+              "customer_1",
+              "customers.0"
+            ]
+          },
+          {
+            "type": "move",
+            "args": [
+              "customer_2",
+              "customers.1"
+            ]
+          },
+          {
+            "type": "move",
+            "args": [
+              "customer_3",
+              "customers.2"
+            ]
+          },
+          {
+            "type": "del",
+            "args": [
+              "segment"
+            ]
+          },
+          {
+            "type": "del",
+            "args": [
+              "count"
+            ]
+          },
+          {
+            "type": "del",
+            "args": [
+              "ids"
+            ]
+          }
+        ]
+      }
+    },
+    "backend": [
+      {
+        "url_pattern": "/customer-ids",
+        "encoding": "json",
+        "host": [
+          "http://users-api.demo.svc.cluster.local:8080"
+        ]
+      },
+      {
+        "url_pattern": "/users/{resp0_ids.first}",
+        "encoding": "json",
+        "group": "customer_1",
+        "host": [
+          "http://users-api.demo.svc.cluster.local:8080"
+        ]
+      },
+      {
+        "url_pattern": "/users/{resp0_ids.second}",
+        "encoding": "json",
+        "group": "customer_2",
+        "host": [
+          "http://users-api.demo.svc.cluster.local:8080"
+        ]
+      },
+      {
+        "url_pattern": "/users/{resp0_ids.third}",
+        "encoding": "json",
+        "group": "customer_3",
+        "host": [
+          "http://users-api.demo.svc.cluster.local:8080"
+        ]
+      }
+    ]
+  },
+  {
     "@comment": "The other merge style: each backend declares a `group`, so its response stays nested under that name instead of being flattened alongside the other. Compare with /v1/customers/{id}.",
     "endpoint": "/v1/profile/{id}",
     "method": "GET",

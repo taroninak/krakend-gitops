@@ -18,8 +18,13 @@ data:
       }
       {{- range .Values.routes }}
 
-      # Matches {{ .path }} and anything below it, so /users/42 answers too.
+      {{- if .exact }}
+      # Exactly {{ .path }} — nothing below it.
+      location = {{ .path }} {
+      {{- else }}
+      # {{ .path }} and anything below it.
       location {{ .path }} {
+      {{- end }}
         return 200 '{{ toJson .response }}';
       }
       {{- end }}

@@ -116,6 +116,7 @@ ConfigMap would show up as permanent drift in Argo CD.
 | `GET /v1/users/{id}` | The users service on its own |
 | `GET /v1/orders/{id}` | The orders service on its own |
 | `GET /v1/customers/{id}` | Calls **two different services** in parallel and merges their JSON into one object. Requires a Keycloak token, from either the `Authorization` header or a cookie |
+| `GET /v1/customers` | Reads customer ids from one upstream call, then calls `/users/{id}` once per id and returns them as a `customers` array |
 | `GET /v1/profile/{id}` | The same two services, but each response kept **nested** under its own group |
 | `GET /v1/protected` | Requires a valid RS256 token issued by the Keycloak `poc` realm, with the `krakend` audience |
 | `GET /__health` | KrakenD's built-in health endpoint (used by the probes) |
@@ -242,6 +243,41 @@ under their own name instead of being flattened:
 ```
 {"identity": {"customer_id": "42", ...}, "purchases": {"order_count": 2, ...}}
 ```
+
+### Chaining calls: ids from one response, a call per id
+
+`GET /v1/customers` does what the sequential proxy is for — a later call built from
+an earlier response body:
+
+```
+GET /v1/customers
+  1. GET /customer-ids   ->  {"ids": {"first":"42","second":"43","third":"44"}, "customers": []}
+  2. GET /users/42       ->  {"customer_id":"42","name":"Ada Lovelace",...}
+  3. GET /users/43       ->  {"customer_id":"43","name":"Grace Hopper",...}
+  4. GET /users/44       ->  {"customer_id":"44","name":"Alan Turing",...}
+
+  {"customers": [ {...Ada...}, {...Grace...}, {...Alan...} ]}
+```
+
+Backends 2–4 take their id from `{resp0_ids.first|second|third}`, and
+`flatmap_filter` moves each fetched user into the `customers` list and drops the
+id-list fields. Three rules make or break this, none of them obvious:
+
+- **The referenced backend must not declare a `group`.** A group nests that
+  backend's data, and `resp0_*` looks at the un-nested keys — with a group the
+  placeholder is sent upstream literally, as `/users/%7B%7B.Resp0_...%7D%7D`.
+- **Ids must be object fields, not an array.** KrakenD states it plainly: "You
+  cannot access nested objects inside arrays or collections: fields must be
+  objects." Dot notation into objects works; `ids.0` does not.
+- **The flatmap target must already be a list.** `/customer-ids` returns
+  `"customers": []` for exactly this reason; moving into a key that is not already
+  a list yields an object keyed `"0"`, `"1"`, `"2"` instead of a JSON array.
+
+**The count is fixed by the config.** KrakenD CE cannot loop over an array to make
+a variable number of calls — three ids means three declared backends. Dynamic
+fan-out needs Enterprise Workflows, a Lua modifier, or a Go plugin. Fan-out is also
+an anti-pattern at scale (latency and error rate both multiply); a real system would
+have the upstream expose a batch endpoint.
 
 ### Changing a route
 
