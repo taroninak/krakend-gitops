@@ -1,0 +1,28 @@
+# demo-api: every upstream route the gateway calls, in one deployment.
+#   code and data  services/demo-api/
+#   deployment     apps/demo-api/
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-api
+  namespace: {{ .Values.argocdNamespace }}
+  # Removing this Application from Git removes its workloads too.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: poc
+  source:
+    repoURL: {{ .Values.repoURL | quote }}
+    targetRevision: {{ .Values.targetRevision | quote }}
+    path: apps/demo-api
+    helm:
+      releaseName: demo-api
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.demoApiNamespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

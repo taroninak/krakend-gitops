@@ -19,8 +19,6 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
-            - name: SERVICE
-              value: {{ required "service is required (users, orders or events)" .Values.service | quote }}
             - name: PORT
               value: {{ .Values.containerPort | quote }}
           ports:
