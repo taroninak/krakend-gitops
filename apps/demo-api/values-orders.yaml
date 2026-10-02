@@ -1,3 +1,2 @@
 nameOverride: orders-api
 service: orders
-dataFile: data/orders.json

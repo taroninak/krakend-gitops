@@ -1,3 +1,2 @@
 nameOverride: users-api
 service: users
-dataFile: data/users.json

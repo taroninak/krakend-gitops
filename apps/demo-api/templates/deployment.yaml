@@ -11,9 +11,6 @@ spec:
       {{- include "demo-api.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      annotations:
-        # Roll the pods when the data changes.
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         {{- include "demo-api.selectorLabels" . | nindent 8 }}
     spec:
@@ -24,8 +21,6 @@ spec:
           env:
             - name: SERVICE
               value: {{ required "service is required (users, orders or events)" .Values.service | quote }}
-            - name: DATA_FILE
-              value: /data/data.json
             - name: PORT
               value: {{ .Values.containerPort | quote }}
           ports:
@@ -46,11 +41,3 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
-          volumeMounts:
-            - name: data
-              mountPath: /data
-              readOnly: true
-      volumes:
-        - name: data
-          configMap:
-            name: {{ include "demo-api.name" . }}

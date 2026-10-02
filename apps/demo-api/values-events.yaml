@@ -1,3 +1,2 @@
 nameOverride: events-api
 service: events
-dataFile: data/events.json

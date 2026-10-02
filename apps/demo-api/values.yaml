@@ -1,9 +1,8 @@
 # Defaults. Each instance supplies its own values file (values-users.yaml,
 # values-orders.yaml, values-events.yaml) via the Argo CD Application.
 #
-# Code and data change for different reasons, so they ship differently:
-#   code  services/demo-api/      built into the image by CI — bump the version
-#   data  apps/demo-api/data/     mounted from a ConfigMap — just commit it
+# This chart only deploys demo-api. What the services do and what data they
+# serve both live in services/demo-api/ and ship together in the image.
 
 nameOverride: ""
 replicaCount: 1
@@ -12,14 +11,12 @@ image:
   repository: ghcr.io/taroninak/demo-api
   # The version in services/demo-api/package.json. CI publishes it and never
   # overwrites a published version, so this pin always means the same code.
-  tag: "1.0.0"
+  tag: "1.1.0"
   pullPolicy: IfNotPresent
 
-# Which router the app mounts: users, orders or events.
+# Which service this instance plays: users, orders or events. Selects both the
+# routes and the data file inside the image.
 service: ""
-
-# The JSON document this instance serves, relative to this chart.
-dataFile: ""
 
 containerPort: 8080
 
