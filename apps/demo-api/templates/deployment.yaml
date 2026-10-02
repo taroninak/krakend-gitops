@@ -21,7 +21,7 @@ spec:
         - name: api
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["python", "-u", "/config/server.py"]
+          command: ["node", "/config/server.js"]
           env:
             - name: PORT
               value: {{ .Values.service.port | quote }}

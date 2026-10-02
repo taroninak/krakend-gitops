@@ -5,8 +5,9 @@ nameOverride: ""
 replicaCount: 1
 
 image:
-  repository: python
-  tag: "3.13-alpine"
+  repository: node
+  # Current LTS. The server uses Node's standard library only, so any LTS works.
+  tag: "24-alpine"
   pullPolicy: IfNotPresent
 
 service:
