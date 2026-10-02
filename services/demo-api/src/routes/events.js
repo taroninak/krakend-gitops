@@ -3,8 +3,8 @@
 //   GET /events/:id   an event, referring to people by id only
 //
 // Turning those ids into user objects is the gateway's job: /v1/events/{id}
-// reads participant_ids and customer_ids from here and resolves each list
-// against users-api in a single batch call.
+// reads participant_ids and customer_ids from here and resolves each list with
+// a single GET /users?ids=... batch call.
 "use strict";
 
 const express = require("express");
