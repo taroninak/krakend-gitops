@@ -88,13 +88,13 @@ config: ## Print the gateway config exactly as the chart assembles it
 smoke: ## Call the gateway through the ingress
 	@echo "--- GET /__health"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/__health; echo
-	@echo "--- GET /v1/users/42 (one upstream)"
+	@echo "--- GET /v1/users/42 (demo-api /users/42)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/users/42; echo
-	@echo "--- GET /v1/orders/42 (the other upstream)"
+	@echo "--- GET /v1/orders/42 (demo-api /orders/42)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/42; echo
 	@echo "--- GET /v1/customers/42 without a token (expect 401)"
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers/42
-	@echo "--- GET /v1/customers/42 with a bearer token (both upstreams merged flat)"
+	@echo "--- GET /v1/customers/42 with a bearer token (two calls merged flat)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' -H "Authorization: Bearer $$(./scripts/get-token.sh)" \
 	http://localhost:$(INGRESS_PORT)/v1/customers/42; echo
 	@echo "--- GET /v1/customers/42 with the token in a cookie (what the browser does)"
@@ -110,7 +110,7 @@ smoke: ## Call the gateway through the ingress
 	@echo "--- GET /v1/events/1002 (an id with no user is reported, not dropped)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/events/1002 \
 	| ./scripts/assert-json.py participants=1 customers=1 participants_missing=1
-	@echo "--- GET /v1/profile/42 (same two upstreams, kept nested under groups)"
+	@echo "--- GET /v1/profile/42 (same two calls, kept nested under groups)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/profile/42; echo
 	@echo "--- GET /v1/protected without a token (expect 401)"
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/protected
@@ -130,9 +130,7 @@ lint: ## Render everything locally (no cluster needed)
 	&& echo "demo-api data        every data file is valid JSON"
 	@for f in services/demo-api/src/*.js services/demo-api/src/routes/*.js; do node --check "$$f" || exit 1; done \
 	&& echo "demo-api code        every module parses"
-	@helm template users-api apps/demo-api -f apps/demo-api/values-users.yaml >/dev/null \
-	&& helm template orders-api apps/demo-api -f apps/demo-api/values-orders.yaml >/dev/null \
-	&& helm template events-api apps/demo-api -f apps/demo-api/values-events.yaml >/dev/null \
+	@helm template demo-api apps/demo-api >/dev/null \
 	&& echo "apps/demo-api       OK"
 	@helm dependency build apps/keycloak >/dev/null 2>&1 || true
 	@helm template keycloak apps/keycloak >/dev/null && echo "apps/keycloak       OK"

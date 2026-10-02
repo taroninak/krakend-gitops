@@ -13,15 +13,8 @@ argocdChartVersion: "10.4.0"
 krakend:
   namespace: gateway
 
-# The two upstream APIs whose responses KrakenD merges into one.
+# Where demo-api — every upstream route the gateway calls — runs.
 demoApiNamespace: demo
-demoApis:
-  - name: users-api
-    valuesFile: values-users.yaml
-  - name: orders-api
-    valuesFile: values-orders.yaml
-  - name: events-api
-    valuesFile: values-events.yaml
 
 keycloak:
   namespace: iam

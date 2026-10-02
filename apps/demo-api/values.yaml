@@ -1,8 +1,5 @@
-# Defaults. Each instance supplies its own values file (values-users.yaml,
-# values-orders.yaml, values-events.yaml) via the Argo CD Application.
-#
-# This chart only deploys demo-api. What the services do and what data they
-# serve both live in services/demo-api/ and ship together in the image.
+# Deploys demo-api: one Deployment and one Service. What it does and the data it
+# serves both live in services/demo-api/ and ship together in the image.
 
 nameOverride: ""
 replicaCount: 1
