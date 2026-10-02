@@ -95,7 +95,7 @@ in Git. The chart assembles it from ordinary JSON:
 apps/krakend/config/
 ├── service.json          # port, timeouts, logging — everything but the routes
 └── endpoints/
-    ├── customers.json    # /v1/users/{id}, /v1/orders/{id}, /v1/customers/{id}, /v1/profile/{id}
+    ├── customers.json    # /v1/users/{id}, /v1/customers, /v1/customers/{id}, /v1/customers/{id}/orders, /v1/profile/{id}
     └── protected.json    # /v1/protected
 ```
 
@@ -114,8 +114,8 @@ ConfigMap would show up as permanent drift in Argo CD.
 |----------|-----------|
 | `GET /v1/profile` | Aggregates two upstream calls (`/uuid` + `/headers`) into one JSON response, rate limited to 20 req/s |
 | `GET /v1/users/{id}` | The users service on its own |
-| `GET /v1/orders/{id}` | The orders service on its own |
-| `GET /v1/customers/{id}` | Calls `/users/{id}` and `/orders/{id}` in parallel and merges their JSON into one object. Requires a Keycloak token, from either the `Authorization` header or a cookie |
+| `GET /v1/customers/{id}/orders` | That customer's orders on their own |
+| `GET /v1/customers/{id}` | Calls `/users/{id}` and `/customers/{id}/orders` in parallel and merges their JSON into one object. Requires a Keycloak token, from either the `Authorization` header or a cookie |
 | `GET /v1/customers` | Reads the customer id list from one upstream call, then fetches all of them in a **single** batch call |
 | `GET /v1/events/{id}` | An event's `participants` and `customers`, each resolved from ids to user objects in one batch call |
 | `GET /v1/profile/{id}` | The same two services, but each response kept **nested** under its own group |
@@ -228,11 +228,11 @@ backend declares a `group`, lays their keys side by side in a single object:
 ```
 GET /v1/customers/42
      ├── GET /users/42    {"customer_id","name","email","tier"}
-     └── GET /orders/42   {"order_count","lifetime_value","orders"}
+     └── GET /customers/42/orders   {"order_count","lifetime_value","orders"}
 ```
 
 Both calls carry the same id, so each returns only that customer's data: `orders.json`
-is one row per order with a `customer_id`, and `/orders/{id}` keeps that customer's
+is one row per order with a `customer_id`, and `/customers/{id}/orders` keeps that customer's
 rows. Customer 43 gets Grace with her three orders; 46 has none and gets an empty
 list.
 
@@ -240,7 +240,7 @@ The gateway does not care that both answers come from the same service: each
 backend is just a host and a path. Pointing one of them at a different service is
 a one-line change to its `host`.
 
-Each half is also exposed on its own (`/v1/users/42`, `/v1/orders/42`) so you can
+Each half is also exposed on its own (`/v1/users/42`, `/v1/customers/42/orders`) so you can
 see what the gateway merged. Note that this is a deliberate choice: KrakenD serves
 only the endpoints declared in `apps/krakend/config/endpoints/`, so an upstream is
 invisible from outside until a route names it.

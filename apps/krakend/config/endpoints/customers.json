@@ -14,12 +14,12 @@
     ]
   },
   {
-    "endpoint": "/v1/orders/{id}",
+    "endpoint": "/v1/customers/{id}/orders",
     "method": "GET",
     "output_encoding": "json",
     "backend": [
       {
-        "url_pattern": "/orders/{id}",
+        "url_pattern": "/customers/{id}/orders",
         "encoding": "json",
         "host": [
           "http://demo-api.demo.svc.cluster.local:8080"
@@ -40,7 +40,7 @@
         ]
       },
       {
-        "url_pattern": "/orders/{id}",
+        "url_pattern": "/customers/{id}/orders",
         "encoding": "json",
         "host": [
           "http://demo-api.demo.svc.cluster.local:8080"
@@ -143,7 +143,7 @@
         ]
       },
       {
-        "url_pattern": "/orders/{id}",
+        "url_pattern": "/customers/{id}/orders",
         "encoding": "json",
         "group": "purchases",
         "host": [

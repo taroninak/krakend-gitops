@@ -90,11 +90,11 @@ smoke: ## Call the gateway through the ingress
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/__health; echo
 	@echo "--- GET /v1/users/42 (demo-api /users/42)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/users/42; echo
-	@echo "--- GET /v1/orders/43 (only customer 43's orders)"
-	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/43 \
+	@echo "--- GET /v1/customers/43/orders (only customer 43's orders)"
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers/43/orders \
 	| ./scripts/assert-json.py orders=3
-	@echo "--- GET /v1/orders/46 (a customer with no orders gets an empty list)"
-	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/46 \
+	@echo "--- GET /v1/customers/46/orders (a customer with no orders gets an empty list)"
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers/46/orders \
 	| ./scripts/assert-json.py orders=0
 	@echo "--- GET /v1/customers/42 without a token (expect 401)"
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers/42
