@@ -1,19 +1,13 @@
 {
-  "_about": "GET /orders/:customerId returns this summary for any customer.",
-  "orders": {
-    "order_count": 2,
-    "lifetime_value": 55.5,
-    "orders": [
-      {
-        "id": "A-1001",
-        "item": "Analytical Engine (spare parts)",
-        "total": 42.5
-      },
-      {
-        "id": "A-1002",
-        "item": "Punch cards, box of 500",
-        "total": 13
-      }
-    ]
-  }
+  "_about": "Orders, one row per order, like a database table: customer_id says whose order it is. GET /orders/:customerId selects that customer's rows. Customer 46 has none, to show the empty case.",
+  "orders": [
+    { "id": "A-1001", "customer_id": "42", "item": "Analytical Engine (spare parts)", "total": 42.5 },
+    { "id": "A-1002", "customer_id": "42", "item": "Punch cards, box of 500", "total": 13.0 },
+    { "id": "A-1003", "customer_id": "43", "item": "Compiler manual, first edition", "total": 24.0 },
+    { "id": "A-1004", "customer_id": "44", "item": "Enigma rotor set", "total": 120.0 },
+    { "id": "A-1005", "customer_id": "43", "item": "Moth, framed", "total": 7.5 },
+    { "id": "A-1006", "customer_id": "45", "item": "Slide rule", "total": 18.9 },
+    { "id": "A-1007", "customer_id": "43", "item": "COBOL reference card", "total": 3.25 },
+    { "id": "A-1008", "customer_id": "45", "item": "Orbital mechanics tables", "total": 31.1 }
+  ]
 }

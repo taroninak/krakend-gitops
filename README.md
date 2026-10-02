@@ -231,6 +231,11 @@ GET /v1/customers/42
      └── GET /orders/42   {"order_count","lifetime_value","orders"}
 ```
 
+Both calls carry the same id, so each returns only that customer's data: `orders.json`
+is one row per order with a `customer_id`, and `/orders/{id}` keeps that customer's
+rows. Customer 43 gets Grace with her three orders; 46 has none and gets an empty
+list.
+
 The gateway does not care that both answers come from the same service: each
 backend is just a host and a path. Pointing one of them at a different service is
 a one-line change to its `host`.

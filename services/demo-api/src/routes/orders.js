@@ -1,11 +1,13 @@
 // orders routes — data/orders.json
 //
-//   GET /orders/:customerId   the customer's order summary
+//   GET /orders/:customerId   that customer's orders, with a count and total
 //
-// Every customer has the same order history in this demo; what matters is that
-// the gateway fetches it separately from the user record and merges the two.
-// The handler reads its data when the request arrives, the way it would query
-// a database.
+// orders.json is one row per order, each with a customer_id, like a database
+// table. The handler reads it when the request arrives and keeps only the rows
+// for the customer asked about — WHERE customer_id = :customerId.
+//
+// A customer with no orders gets an empty list, not a 404: this service knows
+// orders, not customers, so "no orders" is a valid answer.
 "use strict";
 
 const express = require("express");
@@ -15,7 +17,17 @@ const router = express.Router();
 
 router.get("/orders/:customerId", async (req, res) => {
   const { orders } = await readData("orders.json");
-  res.json(orders);
+  const customerOrders = orders.filter((order) => order.customer_id === req.params.customerId);
+
+  const total = customerOrders.reduce((sum, order) => sum + order.total, 0);
+
+  res.json({
+    order_count: customerOrders.length,
+    // Rounded to cents: summing prices in floating point drifts — 0.1 + 0.2 is
+    // 0.30000000000000004 — and a total should read like money.
+    lifetime_value: Math.round(total * 100) / 100,
+    orders: customerOrders,
+  });
 });
 
 module.exports = router;

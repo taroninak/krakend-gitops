@@ -90,13 +90,17 @@ smoke: ## Call the gateway through the ingress
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/__health; echo
 	@echo "--- GET /v1/users/42 (demo-api /users/42)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/users/42; echo
-	@echo "--- GET /v1/orders/42 (demo-api /orders/42)"
-	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/42; echo
+	@echo "--- GET /v1/orders/43 (only customer 43's orders)"
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/43 \
+	| ./scripts/assert-json.py orders=3
+	@echo "--- GET /v1/orders/46 (a customer with no orders gets an empty list)"
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/46 \
+	| ./scripts/assert-json.py orders=0
 	@echo "--- GET /v1/customers/42 without a token (expect 401)"
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers/42
-	@echo "--- GET /v1/customers/42 with a bearer token (two calls merged flat)"
+	@echo "--- GET /v1/customers/43 with a bearer token (user + their own orders, merged flat)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' -H "Authorization: Bearer $$(./scripts/get-token.sh)" \
-	http://localhost:$(INGRESS_PORT)/v1/customers/42; echo
+	http://localhost:$(INGRESS_PORT)/v1/customers/43 | ./scripts/assert-json.py orders=3
 	@echo "--- GET /v1/customers/42 with the token in a cookie (what the browser does)"
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' \
 	--cookie "access_token=$$(./scripts/get-token.sh)" \
