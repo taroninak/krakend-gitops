@@ -1,6 +1,6 @@
 {
   "name": "demo-api",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "The upstream services behind the KrakenD gateway in this POC",
   "main": "src/server.js",
@@ -9,9 +9,9 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "users": "SERVICE=users DATA_FILE=../../apps/demo-api/data/users.json PORT=9001 node src/server.js",
-    "orders": "SERVICE=orders DATA_FILE=../../apps/demo-api/data/orders.json PORT=9002 node src/server.js",
-    "events": "SERVICE=events DATA_FILE=../../apps/demo-api/data/events.json PORT=9003 node src/server.js"
+    "users": "SERVICE=users PORT=9001 node src/server.js",
+    "orders": "SERVICE=orders PORT=9002 node src/server.js",
+    "events": "SERVICE=events PORT=9003 node src/server.js"
   },
   "dependencies": {
     "express": "^5.2.1"

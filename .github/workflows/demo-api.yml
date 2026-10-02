@@ -1,8 +1,8 @@
 # Builds the demo-api image and publishes it to GHCR.
 #
 # The tag is the version in services/demo-api/package.json, and a published
-# version is never overwritten: change the code, bump the version, and point
-# apps/demo-api/values.yaml at it — all in one commit. Argo CD may roll out
+# version is never overwritten: change the code or the data, bump the version,
+# and point apps/demo-api/values.yaml at it — all in one commit. Argo CD may roll out
 # before this job finishes; the new pods simply retry the pull until the image
 # exists, while the old ones keep serving.
 name: demo-api image
@@ -12,6 +12,7 @@ on:
     branches: [main]
     paths:
       - services/demo-api/src/**
+      - services/demo-api/data/**
       - services/demo-api/package.json
       - services/demo-api/package-lock.json
       - services/demo-api/Dockerfile

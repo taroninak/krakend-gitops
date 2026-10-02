@@ -1,15 +1,17 @@
-// Loads the JSON document this instance serves.
+// Loads the JSON document a service serves.
 //
-// The data lives next to the Helm chart (apps/demo-api/data/*.json) and is
-// mounted from a ConfigMap, so changing it is an ordinary Argo CD sync — no new
-// image. Only code changes need a rebuild.
+// The data ships inside the image (data/<service>.json), right next to the code
+// that serves it: changing what a service returns is a change to the service,
+// released like any other — bump the version and let CI build it.
 "use strict";
 
 const fs = require("node:fs");
+const path = require("node:path");
 
-function loadData(file) {
-  if (!file) throw new Error("DATA_FILE is not set");
-  return JSON.parse(fs.readFileSync(file, "utf8"));
+const DATA_DIR = path.join(__dirname, "..", "data");
+
+function loadData(service) {
+  return JSON.parse(fs.readFileSync(path.join(DATA_DIR, `${service}.json`), "utf8"));
 }
 
 module.exports = { loadData };

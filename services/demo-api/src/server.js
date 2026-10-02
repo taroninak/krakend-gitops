@@ -1,8 +1,8 @@
 // demo-api: one small Express app that plays any of the upstream services
-// behind the gateway. SERVICE picks which routes to mount; DATA_FILE says what
-// they serve.
+// behind the gateway. SERVICE picks which routes to mount and which file in
+// data/ they serve.
 //
-//   SERVICE=users  DATA_FILE=data/users.json   node src/server.js
+//   SERVICE=users node src/server.js
 "use strict";
 
 const express = require("express");
@@ -22,7 +22,7 @@ if (!services[SERVICE]) {
   process.exit(1);
 }
 
-const data = loadData(process.env.DATA_FILE);
+const data = loadData(SERVICE);
 const app = express();
 
 // One line per request, so `kubectl logs` shows exactly how many calls the
