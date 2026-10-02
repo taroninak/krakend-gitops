@@ -8,7 +8,7 @@ image:
   repository: ghcr.io/taroninak/demo-api
   # The version in services/demo-api/package.json. CI publishes it and never
   # overwrites a published version, so this pin always means the same code.
-  tag: "1.3.0"
+  tag: "1.4.0"
   pullPolicy: IfNotPresent
 
 

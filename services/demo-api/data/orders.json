@@ -1,5 +1,5 @@
 {
-  "_about": "Orders, one row per order, like a database table: customer_id says whose order it is. GET /orders/:customerId selects that customer's rows. Customer 46 has none, to show the empty case.",
+  "_about": "Orders, one row per order, like a database table: customer_id says whose order it is. GET /customers/:customerId/orders selects that customer's rows. Customer 46 has none, to show the empty case.",
   "orders": [
     { "id": "A-1001", "customer_id": "42", "item": "Analytical Engine (spare parts)", "total": 42.5 },
     { "id": "A-1002", "customer_id": "42", "item": "Punch cards, box of 500", "total": 13.0 },

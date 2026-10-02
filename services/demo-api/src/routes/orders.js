@@ -1,6 +1,6 @@
 // orders routes — data/orders.json
 //
-//   GET /orders/:customerId   that customer's orders, with a count and total
+//   GET /customers/:customerId/orders   that customer's orders, with a count and total
 //
 // orders.json is one row per order, each with a customer_id, like a database
 // table. The handler reads it when the request arrives and keeps only the rows
@@ -15,7 +15,7 @@ const { readData } = require("../data");
 
 const router = express.Router();
 
-router.get("/orders/:customerId", async (req, res) => {
+async function customerOrders(req, res) {
   const { orders } = await readData("orders.json");
   const customerOrders = orders.filter((order) => order.customer_id === req.params.customerId);
 
@@ -28,6 +28,12 @@ router.get("/orders/:customerId", async (req, res) => {
     lifetime_value: Math.round(total * 100) / 100,
     orders: customerOrders,
   });
-});
+}
+
+router.get("/customers/:customerId/orders", customerOrders);
+
+// TEMPORARY: the old path, served by the same handler only until the gateway
+// has moved to the one above. Removed in the next release.
+router.get("/orders/:customerId", customerOrders);
 
 module.exports = router;

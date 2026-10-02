@@ -1,12 +1,12 @@
 // demo-api — the upstream services behind the KrakenD gateway, in one small
 // Express app. Every route the gateway calls is listed here:
 //
-//   route                     code                data
-//   GET /customer-ids         routes/users.js     data/users.json
-//   GET /users/:id            routes/users.js     data/users.json
-//   GET /users?ids=42,43      routes/users.js     data/users.json
-//   GET /orders/:customerId   routes/orders.js    data/orders.json
-//   GET /events/:id           routes/events.js    data/events.json
+//   route                               code                data
+//   GET /customer-ids                   routes/users.js     data/users.json
+//   GET /users/:id                      routes/users.js     data/users.json
+//   GET /users?ids=42,43                routes/users.js     data/users.json
+//   GET /customers/:customerId/orders   routes/orders.js    data/orders.json
+//   GET /events/:id                     routes/events.js    data/events.json
 //
 // Each request is logged with its status and duration, so
 // `kubectl -n demo logs deploy/demo-api` shows every call a gateway request
