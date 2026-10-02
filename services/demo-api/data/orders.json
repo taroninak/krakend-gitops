@@ -1,5 +1,5 @@
 {
-  "_about": "orders-api. GET /orders/:customerId returns this summary for any customer.",
+  "_about": "GET /orders/:customerId returns this summary for any customer.",
   "orders": {
     "order_count": 2,
     "lifetime_value": 55.5,

@@ -1,5 +1,5 @@
 {
-  "_about": "events-api. GET /events/:id returns an event that names people by id only; the gateway resolves participant_ids and customer_ids into user objects. Event 1002 refers to a user (99) who does not exist, to show how that is reported.",
+  "_about": "GET /events/:id returns an event that names people by id only; the gateway resolves participant_ids and customer_ids into user objects. Event 1002 refers to a user (99) who does not exist, to show how that is reported.",
   "events": [
     {
       "event_id": "1001",

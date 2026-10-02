@@ -1,5 +1,5 @@
 {
-  "_about": "users-api. customerIds is what GET /customer-ids returns; users are served by GET /users/:id one at a time, or GET /users?ids=42,43 several in one call.",
+  "_about": "customerIds is what GET /customer-ids returns; users are served by GET /users/:id one at a time, or GET /users?ids=42,43 several in one call.",
   "customerIds": {
     "segment": "gold",
     "count": 4,

@@ -1,5 +1,5 @@
-# The upstream services behind the gateway: code and the data it serves, as one
-# versioned artifact. SERVICE selects which one a container plays.
+# demo-api: every upstream route behind the gateway, with the data it serves,
+# as one versioned artifact.
 FROM node:24-alpine
 
 WORKDIR /app

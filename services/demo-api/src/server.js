@@ -1,34 +1,33 @@
-// demo-api: one small Express app that plays any of the upstream services
-// behind the gateway. SERVICE picks which routes to mount and which file in
-// data/ they serve.
+// demo-api — the upstream services behind the KrakenD gateway, in one small
+// Express app. Every route the gateway calls is listed here:
 //
-//   SERVICE=users node src/server.js
+//   route                     code                data
+//   GET /customer-ids         routes/users.js     data/users.json
+//   GET /users/:id            routes/users.js     data/users.json
+//   GET /users?ids=42,43      routes/users.js     data/users.json
+//   GET /orders/:customerId   routes/orders.js    data/orders.json
+//   GET /events/:id           routes/events.js    data/events.json
+//
+// Each request is logged with its status and duration, so
+// `kubectl -n demo logs deploy/demo-api` shows every call a gateway request
+// turned into, in order.
 "use strict";
 
 const express = require("express");
 const { loadData } = require("./data");
+const usersRouter = require("./routes/users");
+const ordersRouter = require("./routes/orders");
+const eventsRouter = require("./routes/events");
 
-const services = {
-  users: require("./routes/users"),
-  orders: require("./routes/orders"),
-  events: require("./routes/events"),
-};
-
-const SERVICE = process.env.SERVICE;
 const PORT = Number(process.env.PORT || 8080);
-
-if (!services[SERVICE]) {
-  console.error(`SERVICE must be one of: ${Object.keys(services).join(", ")} (got "${SERVICE}")`);
-  process.exit(1);
-}
-
-const data = loadData(SERVICE);
 const app = express();
 
-// One line per request, so `kubectl logs` shows exactly how many calls the
-// gateway made.
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.originalUrl}`);
+  const started = process.hrtime.bigint();
+  res.on("finish", () => {
+    const ms = Number(process.hrtime.bigint() - started) / 1e6;
+    console.log(`${req.method} ${req.originalUrl} -> ${res.statusCode} (${ms.toFixed(1)}ms)`);
+  });
   next();
 });
 
@@ -39,10 +38,12 @@ app.use((req, res, next) => {
 });
 
 app.get("/healthz", (req, res) => {
-  res.json({ status: "ok", service: SERVICE });
+  res.json({ status: "ok" });
 });
 
-app.use(services[SERVICE](data));
+app.use(usersRouter(loadData("users")));
+app.use(ordersRouter(loadData("orders")));
+app.use(eventsRouter(loadData("events")));
 
 // Express answers unknown paths with an HTML page by default; keep it JSON.
 app.use((req, res) => {
@@ -50,7 +51,7 @@ app.use((req, res) => {
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`${SERVICE}-api listening on :${PORT}`);
+  console.log(`demo-api listening on :${PORT}`);
 });
 
 // As PID 1 in a container Node gets no default SIGTERM handling, so without

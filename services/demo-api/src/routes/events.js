@@ -1,4 +1,4 @@
-// events-api
+// events routes (data/events.json)
 //
 //   GET /events/:id   an event, referring to people by id only
 //

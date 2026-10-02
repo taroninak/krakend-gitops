@@ -1,4 +1,4 @@
-// users-api
+// users routes (data/users.json)
 //
 //   GET /customer-ids        the id list the gateway reads first
 //   GET /users/:id           one user

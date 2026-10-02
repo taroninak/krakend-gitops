@@ -1,8 +1,8 @@
-// Loads the JSON document a service serves.
+// Loads one of the JSON documents in data/.
 //
-// The data ships inside the image (data/<service>.json), right next to the code
-// that serves it: changing what a service returns is a change to the service,
-// released like any other — bump the version and let CI build it.
+// The data ships inside the image, right next to the code that serves it:
+// changing what demo-api returns is a change to demo-api, released like any
+// other — bump the version and let CI build it.
 "use strict";
 
 const fs = require("node:fs");
@@ -10,8 +10,8 @@ const path = require("node:path");
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 
-function loadData(service) {
-  return JSON.parse(fs.readFileSync(path.join(DATA_DIR, `${service}.json`), "utf8"));
+function loadData(name) {
+  return JSON.parse(fs.readFileSync(path.join(DATA_DIR, `${name}.json`), "utf8"));
 }
 
 module.exports = { loadData };

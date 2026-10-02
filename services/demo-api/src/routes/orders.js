@@ -1,4 +1,4 @@
-// orders-api
+// orders routes (data/orders.json)
 //
 //   GET /orders/:customerId   the customer's order summary
 //
