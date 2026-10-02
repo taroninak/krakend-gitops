@@ -8,7 +8,7 @@
         "url_pattern": "/users/{id}",
         "encoding": "json",
         "host": [
-          "http://users-api.demo.svc.cluster.local:8080"
+          "http://demo-api.demo.svc.cluster.local:8080"
         ]
       }
     ]
@@ -22,7 +22,7 @@
         "url_pattern": "/orders/{id}",
         "encoding": "json",
         "host": [
-          "http://orders-api.demo.svc.cluster.local:8080"
+          "http://demo-api.demo.svc.cluster.local:8080"
         ]
       }
     ]
@@ -36,14 +36,14 @@
         "url_pattern": "/users/{id}",
         "encoding": "json",
         "host": [
-          "http://users-api.demo.svc.cluster.local:8080"
+          "http://demo-api.demo.svc.cluster.local:8080"
         ]
       },
       {
         "url_pattern": "/orders/{id}",
         "encoding": "json",
         "host": [
-          "http://orders-api.demo.svc.cluster.local:8080"
+          "http://demo-api.demo.svc.cluster.local:8080"
         ]
       }
     ],
@@ -110,14 +110,14 @@
         "url_pattern": "/customer-ids",
         "encoding": "json",
         "host": [
-          "http://users-api.demo.svc.cluster.local:8080"
+          "http://demo-api.demo.svc.cluster.local:8080"
         ]
       },
       {
         "url_pattern": "/users?ids={resp0_ids}",
         "encoding": "json",
         "host": [
-          "http://users-api.demo.svc.cluster.local:8080"
+          "http://demo-api.demo.svc.cluster.local:8080"
         ]
       }
     ]
@@ -139,7 +139,7 @@
         "encoding": "json",
         "group": "identity",
         "host": [
-          "http://users-api.demo.svc.cluster.local:8080"
+          "http://demo-api.demo.svc.cluster.local:8080"
         ]
       },
       {
@@ -147,7 +147,7 @@
         "encoding": "json",
         "group": "purchases",
         "host": [
-          "http://orders-api.demo.svc.cluster.local:8080"
+          "http://demo-api.demo.svc.cluster.local:8080"
         ]
       }
     ]

@@ -21,7 +21,7 @@
         "url_pattern": "/users/42",
         "encoding": "json",
         "host": [
-          "http://users-api.demo.svc.cluster.local:8080"
+          "http://demo-api.demo.svc.cluster.local:8080"
         ]
       }
     ]

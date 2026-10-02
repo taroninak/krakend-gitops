@@ -1,6 +1,6 @@
 [
   {
-    "@comment": "One event, two lists of people. events-api returns participant_ids and customer_ids; each list is resolved against users-api in a single batch call. Both batch responses name their array `customers`, so `mapping` renames it on the participants call \u2014 without that the two would collide on merge and only one list would survive. `missing` is renamed per list for the same reason, so an unknown id is reported against the list it came from.",
+    "@comment": "One event, two lists of people. demo-api's /events/{id} returns participant_ids and customer_ids; each list is resolved against /users?ids= in a single batch call. Both batch responses name their array `customers`, so `mapping` renames it on the participants call \u2014 without that the two would collide on merge and only one list would survive. `missing` is renamed per list for the same reason, so an unknown id is reported against the list it came from.",
     "endpoint": "/v1/events/{id}",
     "method": "GET",
     "output_encoding": "json",
@@ -40,7 +40,7 @@
         "url_pattern": "/events/{id}",
         "encoding": "json",
         "host": [
-          "http://events-api.demo.svc.cluster.local:8080"
+          "http://demo-api.demo.svc.cluster.local:8080"
         ]
       },
       {
@@ -51,7 +51,7 @@
           "missing": "participants_missing"
         },
         "host": [
-          "http://users-api.demo.svc.cluster.local:8080"
+          "http://demo-api.demo.svc.cluster.local:8080"
         ]
       },
       {
@@ -61,7 +61,7 @@
           "missing": "customers_missing"
         },
         "host": [
-          "http://users-api.demo.svc.cluster.local:8080"
+          "http://demo-api.demo.svc.cluster.local:8080"
         ]
       }
     ]
