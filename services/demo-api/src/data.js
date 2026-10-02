@@ -1,17 +1,17 @@
-// Loads one of the JSON documents in data/.
+// readData("users.json") — stands in for a database query.
 //
-// The data ships inside the image, right next to the code that serves it:
-// changing what demo-api returns is a change to demo-api, released like any
-// other — bump the version and let CI build it.
+// The JSON files in data/ play the part of the database. Handlers call this on
+// every request instead of loading everything at startup, so each route shows,
+// right where it uses the data, which file it comes from.
 "use strict";
 
-const fs = require("node:fs");
+const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 
-function loadData(name) {
-  return JSON.parse(fs.readFileSync(path.join(DATA_DIR, `${name}.json`), "utf8"));
+async function readData(file) {
+  return JSON.parse(await fs.readFile(path.join(DATA_DIR, file), "utf8"));
 }
 
-module.exports = { loadData };
+module.exports = { readData };

@@ -14,7 +14,6 @@
 "use strict";
 
 const express = require("express");
-const { loadData } = require("./data");
 const usersRouter = require("./routes/users");
 const ordersRouter = require("./routes/orders");
 const eventsRouter = require("./routes/events");
@@ -41,13 +40,20 @@ app.get("/healthz", (req, res) => {
   res.json({ status: "ok" });
 });
 
-app.use(usersRouter(loadData("users")));
-app.use(ordersRouter(loadData("orders")));
-app.use(eventsRouter(loadData("events")));
+app.use(usersRouter);
+app.use(ordersRouter);
+app.use(eventsRouter);
 
 // Express answers unknown paths with an HTML page by default; keep it JSON.
 app.use((req, res) => {
   res.status(404).json({ error: "no such path", path: req.path });
+});
+
+// Same for failures: if a handler throws — say its data file is unreadable —
+// Express 5 routes the rejected promise here, and the caller still gets JSON.
+app.use((err, req, res, next) => {
+  console.error(`${req.method} ${req.originalUrl} failed:`, err.message);
+  res.status(500).json({ error: "internal error" });
 });
 
 const server = app.listen(PORT, () => {

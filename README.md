@@ -326,7 +326,19 @@ kubectl -n demo logs deploy/demo-api --tail=3
 ```
 
 To find the code behind any of those lines, start at the route map at the top of
-`services/demo-api/src/server.js` — route, router file, data file.
+`services/demo-api/src/server.js` — route, router file, data file — then open the
+router. Each handler reads its data on the line where it uses it, the way it would
+query a database:
+
+```js
+router.get("/users/:id", async (req, res) => {
+  const { users } = await readData("users.json");
+  const user = users.find((u) => u.customer_id === req.params.id);
+  ...
+```
+
+Nothing is loaded at startup or cached, so the router file alone tells you where
+every response comes from.
 
 ### Changing the demo services
 

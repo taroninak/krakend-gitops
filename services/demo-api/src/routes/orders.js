@@ -1,19 +1,21 @@
-// orders routes (data/orders.json)
+// orders routes — data/orders.json
 //
 //   GET /orders/:customerId   the customer's order summary
 //
-// Every customer has the same order history in this demo; what matters here is
-// that it comes from a different service than the user record.
+// Every customer has the same order history in this demo; what matters is that
+// the gateway fetches it separately from the user record and merges the two.
+// The handler reads its data when the request arrives, the way it would query
+// a database.
 "use strict";
 
 const express = require("express");
+const { readData } = require("../data");
 
-module.exports = function ordersRouter({ orders }) {
-  const router = express.Router();
+const router = express.Router();
 
-  router.get("/orders/:customerId", (req, res) => {
-    res.json(orders);
-  });
+router.get("/orders/:customerId", async (req, res) => {
+  const { orders } = await readData("orders.json");
+  res.json(orders);
+});
 
-  return router;
-};
+module.exports = router;
