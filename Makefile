@@ -101,7 +101,7 @@ smoke: ## Call the gateway through the ingress
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' \
 	--cookie "access_token=$$(./scripts/get-token.sh)" \
 	http://localhost:$(INGRESS_PORT)/v1/customers/42
-	@echo "--- GET /v1/customers (ids read from one response, then one call per id)"
+	@echo "--- GET /v1/customers (id list, then ONE batch call for all of them)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers; echo
 	@echo "--- GET /v1/profile/42 (same two upstreams, kept nested under groups)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/profile/42; echo

@@ -64,7 +64,7 @@
     }
   },
   {
-    "@comment": "Fan-out driven by a response body: backend 0 returns the ids, and each following backend substitutes one of them into its path via {resp0_ids.*}. Two rules that cost an afternoon to find: backend 0 must NOT declare a `group` (a group nests its data out of reach of resp0_*), and the flatmap target must already hold a list (backend 0 seeds `customers: []`) or the moves build an object keyed \"0\",\"1\",\"2\" instead of an array.",
+    "@comment": "Two calls, any number of customers: backend 0 returns the id list already joined as ids_csv, and backend 1 passes it to the batch endpoint in one request. The sequential proxy substitutes one scalar per placeholder, so pre-joining is what keeps this at a single follow-up call no matter how many ids there are \u2014 and the upstream returns the `customers` array itself, so no reshaping is needed.",
     "endpoint": "/v1/customers",
     "method": "GET",
     "output_encoding": "json",
@@ -72,27 +72,6 @@
       "proxy": {
         "sequential": true,
         "flatmap_filter": [
-          {
-            "type": "move",
-            "args": [
-              "customer_1",
-              "customers.0"
-            ]
-          },
-          {
-            "type": "move",
-            "args": [
-              "customer_2",
-              "customers.1"
-            ]
-          },
-          {
-            "type": "move",
-            "args": [
-              "customer_3",
-              "customers.2"
-            ]
-          },
           {
             "type": "del",
             "args": [
@@ -108,7 +87,19 @@
           {
             "type": "del",
             "args": [
-              "ids"
+              "ids_csv"
+            ]
+          },
+          {
+            "type": "del",
+            "args": [
+              "requested"
+            ]
+          },
+          {
+            "type": "del",
+            "args": [
+              "returned"
             ]
           }
         ]
@@ -123,25 +114,8 @@
         ]
       },
       {
-        "url_pattern": "/users/{resp0_ids.first}",
+        "url_pattern": "/users?ids={resp0_ids_csv}",
         "encoding": "json",
-        "group": "customer_1",
-        "host": [
-          "http://users-api.demo.svc.cluster.local:8080"
-        ]
-      },
-      {
-        "url_pattern": "/users/{resp0_ids.second}",
-        "encoding": "json",
-        "group": "customer_2",
-        "host": [
-          "http://users-api.demo.svc.cluster.local:8080"
-        ]
-      },
-      {
-        "url_pattern": "/users/{resp0_ids.third}",
-        "encoding": "json",
-        "group": "customer_3",
         "host": [
           "http://users-api.demo.svc.cluster.local:8080"
         ]

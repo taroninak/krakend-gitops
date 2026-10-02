@@ -12,15 +12,19 @@ spec:
   template:
     metadata:
       annotations:
-        # Roll the pods when a response body changes.
+        # Roll the pods when a record or a route changes.
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         {{- include "demo-api.selectorLabels" . | nindent 8 }}
     spec:
       containers:
-        - name: nginx
+        - name: api
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "-u", "/config/server.py"]
+          env:
+            - name: PORT
+              value: {{ .Values.service.port | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
@@ -35,11 +39,13 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
+            runAsUser: 10001
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
           volumeMounts:
             - name: config
-              mountPath: /etc/nginx/conf.d
+              mountPath: /config
               readOnly: true
       volumes:
         - name: config

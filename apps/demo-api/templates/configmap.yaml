@@ -1,5 +1,5 @@
-# nginx serves each route straight from its config: no application, no image
-# build, and the response bodies live in Git next to everything else.
+# Everything the service needs: the script (a static file in this chart) and the
+# data (whatever the instance's values file declares, rendered to JSON).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7,25 +7,7 @@ metadata:
   labels:
     {{- include "demo-api.labels" . | nindent 4 }}
 data:
-  default.conf: |
-    server {
-      listen {{ .Values.service.port }};
-      server_name _;
-      default_type application/json;
-
-      location = /healthz {
-        return 200 '{"status":"ok"}';
-      }
-      {{- range .Values.routes }}
-
-      {{- if .exact }}
-      # Exactly {{ .path }} — nothing below it.
-      location = {{ .path }} {
-      {{- else }}
-      # {{ .path }} and anything below it.
-      location {{ .path }} {
-      {{- end }}
-        return 200 '{{ toJson .response }}';
-      }
-      {{- end }}
-    }
+  server.py: |
+{{ .Files.Get "files/server.py" | indent 4 }}
+  data.json: |
+{{ pick .Values "routes" "records" | toPrettyJson | indent 4 }}

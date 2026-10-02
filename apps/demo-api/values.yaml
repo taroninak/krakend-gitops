@@ -5,20 +5,29 @@ nameOverride: ""
 replicaCount: 1
 
 image:
-  repository: nginxinc/nginx-unprivileged
-  tag: "1.29-alpine"
+  repository: python
+  tag: "3.13-alpine"
   pullPolicy: IfNotPresent
 
 service:
   port: 8080
 
-# Each route returns a fixed JSON document. Written as YAML here and rendered to
-# JSON by the chart, so the response body is readable and diffable in Git.
+# Fixed JSON documents at fixed paths. `exact: true` matches the path only,
+# otherwise it matches the path and anything below it.
 routes: []
+
+# Id-addressable objects. Served one at a time at <path>/<id> and several at
+# once at <path>?ids=a,b,c — the batch form is what lets a gateway fetch many
+# records without one call per id.
+records: {}
+#  path: /users
+#  key: customer_id
+#  collectionKey: customers
+#  items: []
 
 resources:
   requests:
     cpu: 10m
-    memory: 16Mi
+    memory: 32Mi
   limits:
-    memory: 64Mi
+    memory: 96Mi

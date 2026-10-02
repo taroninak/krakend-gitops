@@ -1,45 +1,41 @@
 nameOverride: users-api
 
+# The id list the gateway reads first. ids_csv is pre-joined because KrakenD's
+# sequential proxy substitutes one scalar per placeholder — handing it a ready
+# made list means the gateway needs exactly one follow-up call regardless of how
+# many ids there are.
 routes:
-  # The id list the gateway reads first. The ids are an OBJECT, not an array, on
-  # purpose: KrakenD's sequential proxy can follow dot notation into nested
-  # objects ({resp0_ids.first}) but cannot index into arrays — "fields must be
-  # objects". An array here would be unreachable from the gateway config.
   - path: /customer-ids
     exact: true
     response:
       segment: gold
-      count: 3
-      ids:
-        first: "42"
-        second: "43"
-        third: "44"
-      # Seeded empty on purpose. The gateway's flatmap moves each fetched user
-      # into this list; moving into a key that does not already hold a list
-      # produces an object with "0"/"1"/"2" keys instead of a JSON array.
-      customers: []
+      count: 4
+      ids_csv: "42,43,44,45"
 
-  # One record per id, so a fan-out to three ids returns three different people.
-  - path: /users/42
-    exact: true
-    response:
-      customer_id: "42"
+# Five people on file; the id list above asks for four of them, so the batch
+# response proves it filters rather than returning everything.
+records:
+  path: /users
+  key: customer_id
+  collectionKey: customers
+  items:
+    - customer_id: "42"
       name: Ada Lovelace
       email: ada@example.com
       tier: gold
-
-  - path: /users/43
-    exact: true
-    response:
-      customer_id: "43"
+    - customer_id: "43"
       name: Grace Hopper
       email: grace@example.com
       tier: gold
-
-  - path: /users/44
-    exact: true
-    response:
-      customer_id: "44"
+    - customer_id: "44"
       name: Alan Turing
       email: alan@example.com
       tier: silver
+    - customer_id: "45"
+      name: Katherine Johnson
+      email: katherine@example.com
+      tier: gold
+    - customer_id: "46"
+      name: Edsger Dijkstra
+      email: edsger@example.com
+      tier: bronze
