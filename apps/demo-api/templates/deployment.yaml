@@ -12,7 +12,7 @@ spec:
   template:
     metadata:
       annotations:
-        # Roll the pods when a record or a route changes.
+        # Roll the pods when the data changes.
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         {{- include "demo-api.selectorLabels" . | nindent 8 }}
@@ -21,13 +21,16 @@ spec:
         - name: api
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["node", "/config/server.js"]
           env:
+            - name: SERVICE
+              value: {{ required "service is required (users, orders or events)" .Values.service | quote }}
+            - name: DATA_FILE
+              value: /data/data.json
             - name: PORT
-              value: {{ .Values.service.port | quote }}
+              value: {{ .Values.containerPort | quote }}
           ports:
             - name: http
-              containerPort: {{ .Values.service.port }}
+              containerPort: {{ .Values.containerPort }}
           readinessProbe:
             httpGet: {path: /healthz, port: http}
             initialDelaySeconds: 2
@@ -39,15 +42,15 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
-            runAsUser: 10001
+            runAsUser: 1000
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
           volumeMounts:
-            - name: config
-              mountPath: /config
+            - name: data
+              mountPath: /data
               readOnly: true
       volumes:
-        - name: config
+        - name: data
           configMap:
             name: {{ include "demo-api.name" . }}

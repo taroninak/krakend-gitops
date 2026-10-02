@@ -125,6 +125,11 @@ lint: ## Render everything locally (no cluster needed)
 	@$(TOFU) -chdir=$(INFRA) validate >/dev/null && echo "infra/              validate OK"
 	@helm template root clusters/poc --set repoURL=https://example.com/repo.git >/dev/null && echo "clusters/poc        OK"
 	@helm template portal apps/portal >/dev/null && echo "apps/portal         OK"
+	@for f in apps/demo-api/data/*.json; do \
+	python3 -c "import json,sys;json.load(open(sys.argv[1]))" "$$f" || exit 1; done \
+	&& echo "demo-api data        every data file is valid JSON"
+	@for f in services/demo-api/src/*.js services/demo-api/src/routes/*.js; do node --check "$$f" || exit 1; done \
+	&& echo "demo-api code        every module parses"
 	@helm template users-api apps/demo-api -f apps/demo-api/values-users.yaml >/dev/null \
 	&& helm template orders-api apps/demo-api -f apps/demo-api/values-orders.yaml >/dev/null \
 	&& helm template events-api apps/demo-api -f apps/demo-api/values-events.yaml >/dev/null \

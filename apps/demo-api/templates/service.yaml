@@ -9,5 +9,5 @@ spec:
     {{- include "demo-api.selectorLabels" . | nindent 4 }}
   ports:
     - name: http
-      port: {{ .Values.service.port }}
+      port: {{ .Values.containerPort }}
       targetPort: http

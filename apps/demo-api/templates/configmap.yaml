@@ -1,5 +1,5 @@
-# Everything the service needs: the script (a static file in this chart) and the
-# data (whatever the instance's values file declares, rendered to JSON).
+# The data this instance serves, straight from apps/demo-api/data/. Editing that
+# file changes this ConfigMap, whose checksum rolls the pods — no image rebuild.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7,7 +7,5 @@ metadata:
   labels:
     {{- include "demo-api.labels" . | nindent 4 }}
 data:
-  server.js: |
-{{ .Files.Get "files/server.js" | indent 4 }}
   data.json: |
-{{ pick .Values "routes" "records" | toPrettyJson | indent 4 }}
+{{ required "dataFile is required" .Values.dataFile | .Files.Get | indent 4 }}
