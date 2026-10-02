@@ -1,6 +1,6 @@
 {
   "name": "demo-api",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "description": "The upstream services behind the KrakenD gateway in this POC, in one Express app",
   "main": "src/server.js",

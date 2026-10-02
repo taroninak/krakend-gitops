@@ -15,7 +15,7 @@ const { readData } = require("../data");
 
 const router = express.Router();
 
-async function customerOrders(req, res) {
+router.get("/customers/:customerId/orders", async (req, res) => {
   const { orders } = await readData("orders.json");
   const customerOrders = orders.filter((order) => order.customer_id === req.params.customerId);
 
@@ -28,12 +28,6 @@ async function customerOrders(req, res) {
     lifetime_value: Math.round(total * 100) / 100,
     orders: customerOrders,
   });
-}
-
-router.get("/customers/:customerId/orders", customerOrders);
-
-// TEMPORARY: the old path, served by the same handler only until the gateway
-// has moved to the one above. Removed in the next release.
-router.get("/orders/:customerId", customerOrders);
+});
 
 module.exports = router;
