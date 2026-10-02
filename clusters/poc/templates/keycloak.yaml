@@ -8,6 +8,11 @@ kind: Application
 metadata:
   name: keycloak
   namespace: {{ .Values.argocdNamespace }}
+  # Without this, removing the Application from Git deletes only the Argo CD
+  # object and orphans every workload it deployed. (httpbin's Deployment kept
+  # running for weeks after its Application was pruned.)
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
   annotations:
     # Keycloak needs its database first; the chart's dbchecker waits, but the
     # wave keeps the Argo CD UI honest about the ordering.

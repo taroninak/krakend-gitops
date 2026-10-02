@@ -327,6 +327,12 @@ No `kubectl`, no `helm`, no `tofu` — a route change is a pull request.
   last release in 2023 or earlier. kind ships no ingress controller, hence the
   explicit `ingress-nginx` release — which is arguably the better demonstration of the
   Helm provider anyway.
+- **Removing an app from Git removes its workloads.** Every workload Application
+  carries `resources-finalizer.argocd.argoproj.io`; without it, pruning an
+  Application deletes only the Argo CD object and leaves its Deployments running,
+  unowned, indefinitely — which is what happened to httpbin before this was added.
+  The `argocd` Application is the deliberate exception: a cascading finalizer there
+  would let a bad commit uninstall Argo CD.
 - **Why Terraform installs Argo CD at all.** Something has to create the thing that
   reads Git. Immediately afterwards `clusters/poc/templates/argocd.yaml` takes over,
   reading the *same* values file, so the two cannot drift.

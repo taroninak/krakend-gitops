@@ -6,6 +6,8 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: argocd
+  # Deliberately no resources-finalizer, unlike every other Application here:
+  # with one, removing this file from Git would make Argo CD uninstall itself.
   namespace: {{ .Values.argocdNamespace }}
 spec:
   project: poc
