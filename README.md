@@ -17,8 +17,9 @@ A local, disposable stack that follows the standard split: **OpenTofu provisions
                    ├─ Argo CD    (manages its own installation)
                    ├─ KrakenD    (chart + krakend.json, both in this repo)
                    ├─ Keycloak   (umbrella chart: keycloakx + PostgreSQL + realm)
-                   ├─ users-api  ┐ one chart, two releases —
-                   ├─ orders-api ┘ the pair KrakenD merges
+                   ├─ users-api  ┐
+                   ├─ orders-api ├ one chart, three releases — the upstreams
+                   ├─ events-api ┘
                    └─ portal     (browser login page)
 ```
 
@@ -117,6 +118,7 @@ ConfigMap would show up as permanent drift in Argo CD.
 | `GET /v1/orders/{id}` | The orders service on its own |
 | `GET /v1/customers/{id}` | Calls **two different services** in parallel and merges their JSON into one object. Requires a Keycloak token, from either the `Authorization` header or a cookie |
 | `GET /v1/customers` | Reads the customer id list from one upstream call, then fetches all of them in a **single** batch call |
+| `GET /v1/events/{id}` | An event's `participants` and `customers`, each resolved from ids to user objects in one batch call |
 | `GET /v1/profile/{id}` | The same two services, but each response kept **nested** under its own group |
 | `GET /v1/protected` | Requires a valid RS256 token issued by the Keycloak `poc` realm, with the `krakend` audience |
 | `GET /__health` | KrakenD's built-in health endpoint (used by the probes) |
@@ -251,7 +253,7 @@ and fetches every customer in that one call:
 
 ```
 GET /v1/customers
-  1. GET /customer-ids        ->  {"ids_csv": "42,43,44,45", "count": 4}
+  1. GET /customer-ids        ->  {"ids": ["42","43","44","45"], "count": 4}
   2. GET /users?ids=42,43,44,45  ->  {"customers": [ …4 objects… ]}
 
   {"customers": [ {…Ada…}, {…Grace…}, {…Alan…}, {…Katherine…} ]}
@@ -260,11 +262,15 @@ GET /v1/customers
 Two upstream calls, whatever the number of ids — `kubectl -n demo logs deploy/users-api`
 prints one line per call if you want to see it. The design rests on two choices:
 
-- **The id list arrives pre-joined** as `ids_csv`. KrakenD's sequential proxy
-  substitutes one scalar per placeholder (`{resp0_ids_csv}`), so handing it a ready
-  made list is what keeps the follow-up at a single call. A JSON array would not
-  work: *"You cannot access nested objects inside arrays or collections: fields must
-  be objects."*
+- **The whole id array goes into one placeholder.** `{resp0_ids}` with
+  `ids: ["42","43","44","45"]` becomes `/users?ids=42,43,44,45`: KrakenD 2.9 joins a
+  substituted array with commas. That is *observed* behaviour in 2.9.4, not something
+  the docs promise — they only say values "are represented as string". So
+  `make smoke` asserts the size of every list these routes return; if an upgrade
+  renders arrays differently, the smoke test fails instead of the routes quietly
+  returning empty lists. What genuinely does not work is *indexing into* an array
+  (`{resp0_ids.0}`): *"You cannot access nested objects inside arrays or
+  collections: fields must be objects."*
 - **The upstream exposes a batch endpoint.** `users-api` serves `/users/42` for one
   record and `/users?ids=42,43` for many, so the gateway never has to loop.
 
@@ -279,6 +285,31 @@ is also how you would build it for real.
 `users-api` holds five records while the id list asks for four, so the response
 proves the upstream filters rather than returning everything. Ask for an id that
 does not exist and the gateway passes the upstream's `missing` list through.
+
+### Resolving several id lists
+
+`events-api` knows events only by the ids of the people involved. `GET
+/v1/events/1001` turns both lists into user objects:
+
+```
+GET /v1/events/1001
+  1. GET events-api /events/1001     ->  {"title": "...", "participant_ids": ["42","43","44","46"],
+                                          "customer_ids": ["42","45"]}
+  2. GET users-api  /users?ids=42,43,44,46   ┐ both read ids from call 1,
+  3. GET users-api  /users?ids=42,45         ┘ one batch call per list
+
+  {"event_id": "1001", "title": "Quarterly business review",
+   "participants": [ {…Ada…}, {…Grace…}, {…Alan…}, {…Edsger…} ],
+   "customers":    [ {…Ada…}, {…Katherine…} ]}
+```
+
+Ada (42) is in both lists, as she should be: each list is resolved independently.
+
+Both batch calls answer with an array named `customers`, so merged as-is one list
+would overwrite the other. The participants backend uses `mapping` to rename its
+array to `participants`. `missing` gets the same treatment per list, so an id with
+no user is reported against the list it came from — `/v1/events/1002` invites a
+user who does not exist and shows `"participants_missing": ["99"]`.
 
 ### Changing a route
 

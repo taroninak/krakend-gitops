@@ -64,7 +64,7 @@
     }
   },
   {
-    "@comment": "Two calls, any number of customers: backend 0 returns the id list already joined as ids_csv, and backend 1 passes it to the batch endpoint in one request. The sequential proxy substitutes one scalar per placeholder, so pre-joining is what keeps this at a single follow-up call no matter how many ids there are \u2014 and the upstream returns the `customers` array itself, so no reshaping is needed.",
+    "@comment": "Two calls, any number of customers: backend 0 returns the id list, and backend 1 passes all of it to the batch endpoint in one request. A whole array substituted into {resp0_ids} is rendered comma-joined by KrakenD 2.9 \u2014 observed behaviour, not documented, so `make smoke` asserts the result size to catch a change on upgrade.",
     "endpoint": "/v1/customers",
     "method": "GET",
     "output_encoding": "json",
@@ -87,7 +87,7 @@
           {
             "type": "del",
             "args": [
-              "ids_csv"
+              "ids"
             ]
           },
           {
@@ -114,7 +114,7 @@
         ]
       },
       {
-        "url_pattern": "/users?ids={resp0_ids_csv}",
+        "url_pattern": "/users?ids={resp0_ids}",
         "encoding": "json",
         "host": [
           "http://users-api.demo.svc.cluster.local:8080"

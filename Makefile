@@ -102,7 +102,14 @@ smoke: ## Call the gateway through the ingress
 	--cookie "access_token=$$(./scripts/get-token.sh)" \
 	http://localhost:$(INGRESS_PORT)/v1/customers/42
 	@echo "--- GET /v1/customers (id list, then ONE batch call for all of them)"
-	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers; echo
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers \
+	| ./scripts/assert-json.py customers=4
+	@echo "--- GET /v1/events/1001 (two id lists, one batch call each)"
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/events/1001 \
+	| ./scripts/assert-json.py participants=4 customers=2
+	@echo "--- GET /v1/events/1002 (an id with no user is reported, not dropped)"
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/events/1002 \
+	| ./scripts/assert-json.py participants=1 customers=1 participants_missing=1
 	@echo "--- GET /v1/profile/42 (same two upstreams, kept nested under groups)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/profile/42; echo
 	@echo "--- GET /v1/protected without a token (expect 401)"
@@ -120,6 +127,7 @@ lint: ## Render everything locally (no cluster needed)
 	@helm template portal apps/portal >/dev/null && echo "apps/portal         OK"
 	@helm template users-api apps/demo-api -f apps/demo-api/values-users.yaml >/dev/null \
 	&& helm template orders-api apps/demo-api -f apps/demo-api/values-orders.yaml >/dev/null \
+	&& helm template events-api apps/demo-api -f apps/demo-api/values-events.yaml >/dev/null \
 	&& echo "apps/demo-api       OK"
 	@helm dependency build apps/keycloak >/dev/null 2>&1 || true
 	@helm template keycloak apps/keycloak >/dev/null && echo "apps/keycloak       OK"

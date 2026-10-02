@@ -20,6 +20,8 @@ demoApis:
     valuesFile: values-users.yaml
   - name: orders-api
     valuesFile: values-orders.yaml
+  - name: events-api
+    valuesFile: values-events.yaml
 
 keycloak:
   namespace: iam

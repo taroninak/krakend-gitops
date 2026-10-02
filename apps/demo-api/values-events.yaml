@@ -1,0 +1,24 @@
+nameOverride: events-api
+
+# Events refer to people by id only. Resolving those ids into user objects is
+# the gateway's job: /v1/events/{id} reads both lists from here and fetches each
+# list from users-api in a single batch call.
+routes:
+  - path: /events/1001
+    exact: true
+    response:
+      event_id: "1001"
+      title: Quarterly business review
+      participant_ids: ["42", "43", "44", "46"]
+      # A subset of the participants plus one who is not attending — so the
+      # same person (42) legitimately appears in both resolved lists.
+      customer_ids: ["42", "45"]
+
+  # Refers to a user who does not exist, to show how the gateway reports it.
+  - path: /events/1002
+    exact: true
+    response:
+      event_id: "1002"
+      title: Planning session with a stale invite
+      participant_ids: ["42", "99"]
+      customer_ids: ["45"]

@@ -1,16 +1,15 @@
 nameOverride: users-api
 
-# The id list the gateway reads first. ids_csv is pre-joined because KrakenD's
-# sequential proxy substitutes one scalar per placeholder — handing it a ready
-# made list means the gateway needs exactly one follow-up call regardless of how
-# many ids there are.
+# The id list the gateway reads first. When a whole array is substituted into a
+# {resp0_...} placeholder, KrakenD 2.9 joins it with commas, so the follow-up is a
+# single /users?ids=42,43,44,45 call however many ids there are.
 routes:
   - path: /customer-ids
     exact: true
     response:
       segment: gold
       count: 4
-      ids_csv: "42,43,44,45"
+      ids: ["42", "43", "44", "45"]
 
 # Five people on file; the id list above asks for four of them, so the batch
 # response proves it filters rather than returning everything.
