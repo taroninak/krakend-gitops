@@ -1,6 +1,6 @@
 {
-  "$schema": "https://www.krakend.io/schema/v3.json",
-  "version": 3,
+  "$schema": "https://www.krakend.io/schema/krakend.json",
+  "version": 4,
   "name": "krakend-poc",
   "port": 8080,
   "timeout": "3s",

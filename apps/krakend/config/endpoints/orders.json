@@ -1,6 +1,6 @@
 [
   {
-    "@comment": "An order with its customer and the participants of all its events, combined in KrakenD config. Calls run in order: 0 the order; 1 its customer ({resp0_customer_id}); 2 the order's events, whose participant_ids lists the backend-level flatmap gathers into one list; 3 those users in one batch call ({resp2_participant_ids}). Duplicates in the gathered list are harmless: /users?ids= returns each matching user once.",
+    "@comment": "An order with its customer and the participants of all its events in one list. Calls run in order: 0 the order; 1 its customer ({resp0_customer_id}); 2 the order's events, whose participant_ids pluck collects into one list; 3 those users in one batch call ({resp2_participant_ids}). Repeated ids are harmless: /users?ids= returns each matching user once.",
     "endpoint": "/v1/orders/{id}",
     "method": "GET",
     "output_encoding": "json",
@@ -17,6 +17,18 @@
           {
             "type": "del",
             "args": [
+              "events.*.participant_ids"
+            ]
+          },
+          {
+            "type": "del",
+            "args": [
+              "events.*.order_id"
+            ]
+          },
+          {
+            "type": "del",
+            "args": [
               "requested"
             ]
           },
@@ -24,12 +36,6 @@
             "type": "del",
             "args": [
               "returned"
-            ]
-          },
-          {
-            "type": "del",
-            "args": [
-              "missing"
             ]
           }
         ]
@@ -52,66 +58,27 @@
         ]
       },
       {
-        "@comment": "flatmap has no 'for each': gathering takes one operation per event, so this handles up to 5 events per order and ignores the rest. Slots with no event are skipped. Wildcards address all events but cannot collect from them: move from events.*.participant_ids keeps only the last list, and append ignores wildcards.",
         "url_pattern": "/events?order_id={id}",
         "encoding": "json",
         "host": [
           "http://demo-api.demo.svc.cluster.local:8080"
         ],
         "extra_config": {
-          "proxy": {
-            "flatmap_filter": [
-              {
-                "type": "move",
-                "args": [
-                  "events.0.participant_ids",
-                  "participant_ids"
-                ]
-              },
-              {
-                "type": "append",
-                "args": [
-                  "events.1.participant_ids",
-                  "participant_ids"
-                ]
-              },
-              {
-                "type": "append",
-                "args": [
-                  "events.2.participant_ids",
-                  "participant_ids"
-                ]
-              },
-              {
-                "type": "append",
-                "args": [
-                  "events.3.participant_ids",
-                  "participant_ids"
-                ]
-              },
-              {
-                "type": "append",
-                "args": [
-                  "events.4.participant_ids",
-                  "participant_ids"
-                ]
-              },
-              {
-                "type": "del",
-                "args": [
-                  "events.*.order_id"
-                ]
-              }
-            ]
+          "modifier/lua-backend": {
+            "sources": [
+              "/etc/krakend/collections.lua"
+            ],
+            "post": "pluck(response.load(), 'events', 'participant_ids', 'participant_ids')",
+            "allow_open_libs": false
           }
         }
       },
       {
-        "@comment": "For an order with no events there is no participant_ids to substitute, so the placeholder goes upstream unresolved. It matches no user, so participants is empty \u2014 correct \u2014 but it would be listed in `missing`, which is why the endpoint drops `missing`.",
         "url_pattern": "/users?ids={resp2_participant_ids}",
         "encoding": "json",
         "mapping": {
-          "customers": "participants"
+          "customers": "participants",
+          "missing": "participants_missing"
         },
         "host": [
           "http://demo-api.demo.svc.cluster.local:8080"

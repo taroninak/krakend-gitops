@@ -14,7 +14,7 @@
     ]
   },
   {
-    "@comment": "A customer's orders, each with its own participants. Three calls whatever the number of orders: 0 the orders; 1 the events of all of them; 2 every participant in one batch. Attaching participants to each order is a loop, which KrakenD config cannot express, so three small functions in lua/customer-orders.lua do the looping \u2014 collect the order ids after call 0, the participant ids after call 1, and attach each order's users at the end.",
+    "@comment": "A customer's orders, each with its own participants, in three calls however many orders there are: 0 the orders; 1 the events of all of them; 2 every participant in one batch. The generic Lua in lua/collections.lua does the looping config cannot: pluck collects ids for the next call, attach gives each order the users from its own events. The key names below say what joins to what.",
     "endpoint": "/v1/customers/{id}/orders",
     "method": "GET",
     "output_encoding": "json",
@@ -24,9 +24,9 @@
       },
       "modifier/lua-proxy": {
         "sources": [
-          "/etc/krakend/customer-orders.lua"
+          "/etc/krakend/collections.lua"
         ],
-        "post": "attach_participants(response.load())",
+        "post": "local r = response.load() attach(r, { parents = 'orders', key = 'id', children = 'events', child_key = 'order_id', ids = 'participant_ids', lookup = 'customers', lookup_key = 'customer_id', into = 'participants' }) drop(r, { 'order_ids', 'events', 'participant_ids', 'customers', 'requested', 'returned', 'missing' })",
         "allow_open_libs": false
       }
     },
@@ -40,9 +40,9 @@
         "extra_config": {
           "modifier/lua-backend": {
             "sources": [
-              "/etc/krakend/customer-orders.lua"
+              "/etc/krakend/collections.lua"
             ],
-            "post": "collect_order_ids(response.load())",
+            "post": "pluck(response.load(), 'orders', 'id', 'order_ids')",
             "allow_open_libs": false
           }
         }
@@ -56,9 +56,9 @@
         "extra_config": {
           "modifier/lua-backend": {
             "sources": [
-              "/etc/krakend/customer-orders.lua"
+              "/etc/krakend/collections.lua"
             ],
-            "post": "collect_participant_ids(response.load())",
+            "post": "pluck(response.load(), 'events', 'participant_ids', 'participant_ids')",
             "allow_open_libs": false
           }
         }

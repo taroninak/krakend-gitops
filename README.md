@@ -119,7 +119,7 @@ ConfigMap would show up as permanent drift in Argo CD.
 | `GET /v1/customers/{id}/orders` | That customer's orders, each with its own `participants` — three calls however many orders, attached by a short Lua script in KrakenD |
 | `GET /v1/customers/{id}` | Calls `/users/{id}` and `/customers/{id}/orders` in parallel and merges their JSON into one object. Requires a Keycloak token, from either the `Authorization` header or a cookie |
 | `GET /v1/customers` | Reads the customer id list from one upstream call, then fetches all of them in a **single** batch call |
-| `GET /v1/orders/{id}` | An order with its `customer` and its `events`, plus the `participants` of all those events combined into one list — in KrakenD config |
+| `GET /v1/orders/{id}` | An order with its `customer` and its `events`, plus the `participants` of all those events in one list — collected by the generic Lua `pluck` |
 | `GET /v1/events/{id}` | An event with its `participants` (one batch call) and its `customer`, found by following the event's order |
 | `GET /v1/profile/{id}` | The same two services, but each response kept **nested** under its own group |
 | `GET /v1/protected` | Requires a valid RS256 token issued by the Keycloak `poc` realm, with the `krakend` audience |
@@ -273,7 +273,7 @@ prints one line per call, with its status and duration. The design rests on two 
 
 - **The whole id array goes into one placeholder.** `{resp0_ids}` with
   `ids: ["42","43","44","45"]` becomes `/users?ids=42,43,44,45`: KrakenD 2.9 joins a
-  substituted array with commas. That is *observed* behaviour in 2.9.4, not something
+  substituted array with commas. That is *observed* behaviour in 2.9 and 3.0, not something
   the docs promise — they only say values "are represented as string". So
   `make smoke` asserts the size of every list these routes return; if an upgrade
   renders arrays differently, the smoke test fails instead of the routes quietly
@@ -332,89 +332,63 @@ Two things in the config exist only to make that work:
 The customer (Katherine) is not among the participants; in event 1002 the customer
 (Ada) is. Both are fine: the two references are resolved independently.
 
-### Combining lists from several calls: an order's participants
+### Working with lists: generic Lua
 
-An order has several events, and each event lists its participants. `GET
-/v1/orders/A-1006` returns the order with one `participants` list covering all of
-its events — combined by KrakenD, with no combining code in demo-api:
+Two routes need what KrakenD config cannot do with a list — **collect** values out of
+it, and **attach** related data to each element. Three small, generic functions in
+`apps/krakend/config/lua/collections.lua` do just that, and nothing else:
 
-```
-GET /v1/orders/A-1006
-  0. GET /orders/A-1006             ->  {"id": "A-1006", "customer_id": "45", "item": ..., "total": ...}
-  1. GET /users/45                  ->  the customer                          customer_id from call 0
-  2. GET /events?order_id=A-1006    ->  {"events": [ {1001, participant_ids: [42,43,44,46]},
-                                                     {1003, participant_ids: [43,45]} ]}
-     flatmap on this call           ->  participant_ids: [42,43,44,46,43,45]
-  3. GET /users?ids=42,43,44,46,43,45  ->  5 users: Grace (43) once        participant_ids from call 2
+| function | does |
+|---|---|
+| `pluck(r, list, field, into)` | collects `field` from every element of `list` into a new list (flattening lists) |
+| `attach(r, spec)` | gives each parent element the lookup items its matching children refer to |
+| `drop(r, keys)` | removes working data left behind by earlier steps |
 
-  {"id": "A-1006", "item": "Slide rule", ..., "customer": {…Katherine…},
-   "events": [ {"event_id": "1001", ...}, {"event_id": "1003", ...} ],
-   "participants": [ {…Ada…}, {…Grace…}, {…Alan…}, {…Katherine…}, {…Edsger…} ]}
-```
+None of them knows about orders or users: each route passes its own key names, so
+**the route config says what joins to what**, and the calls themselves are declared
+like any other route.
 
-The combining is a `flatmap_filter` on call 2, before the next call reads it:
-
-```json
-{ "type": "move",   "args": ["events.0.participant_ids", "participant_ids"] },
-{ "type": "append", "args": ["events.1.participant_ids", "participant_ids"] },
-{ "type": "append", "args": ["events.2.participant_ids", "participant_ids"] },
-...
-```
-
-What makes it work, and where it stops — each found by trying it:
-
-- **A later call sees a backend's flatmap result.** `{resp2_participant_ids}` reads the
-  list the flatmap built, not the raw response.
-- **flatmap has no "for each".** A wildcard can address every event but cannot collect
-  from them: `move` from `events.*.participant_ids` keeps only the *last* list, and
-  `append` ignores wildcards entirely. So there is one `append` per event slot — five
-  here. A sixth event's participants would be silently left out.
-- **Duplicates are left to the server.** Grace is in both events, so the gathered list
-  names her twice. `/users?ids=` behaves like `WHERE customer_id IN (...)` and returns
-  each matching user once.
-- **An order with no events** (A-1003) never gets a `participant_ids` field, so the
-  placeholder goes upstream unresolved. It matches no user and `participants` comes
-  back empty — the right answer — but it would show up in `missing`, so this route
-  drops `missing`. Unknown participant ids (event 1002's `99`) are reported on
-  `/v1/events/{id}` instead.
-
-Doing the same with no cap is possible in KrakenD too, with a short Lua script on
-call 2 — it can loop. This route stays with plain config to show how far that goes;
-the next one shows where config stops.
-
-### Where config stops: each order's own participants
-
-`GET /v1/customers/45/orders` lists a customer's orders and gives **each order** the
-participants of its own events:
+**An order's participants, combined** — `GET /v1/orders/A-1006`:
 
 ```
-GET /v1/customers/45/orders
-  0. GET /customers/45/orders              ->  orders A-1006, A-1008
-     lua collect_order_ids                 ->  order_ids: [A-1006, A-1008]
-  1. GET /events?order_id=A-1006,A-1008    ->  events 1001, 1003 (A-1006) and 1004 (A-1008)
-     lua collect_participant_ids           ->  participant_ids: [42,43,44,46,43,45,44,45]
-  2. GET /users?ids=42,43,44,46,43,45,44,45  ->  5 users
-     lua attach_participants               ->  each order gets the users from its own events
-
-  {"order_count": 2, "lifetime_value": 50, "orders": [
-     {"id": "A-1006", ..., "participants": [Ada, Grace, Alan, Edsger, Katherine]},
-     {"id": "A-1008", ..., "participants": [Alan, Katherine]} ]}
+0. GET /orders/A-1006               the order
+1. GET /users/45                    its customer          customer_id from call 0
+2. GET /events?order_id=A-1006      its events
+   pluck(r, 'events', 'participant_ids', 'participant_ids')  ->  [42,43,44,46,43,45]
+3. GET /users?ids=42,43,44,46,43,45  every participant, once   from the pluck
 ```
 
-Three calls whatever the number of orders — no call per order. The calls are
-declared in the config like any other route; `apps/krakend/config/lua/customer-orders.lua`
-holds three short functions that do only the looping, which config cannot:
+Repeated ids are harmless: `/users?ids=` behaves like `WHERE customer_id IN (...)`.
+`pluck` handles any number of events, and always produces a list — empty for an
+order with none — so the next call always has something to substitute.
 
-- **flatmap can combine lists but not build one from single values.** Order ids are
-  one string per order; moving the first into a key and appending the rest keeps only
-  the first, and moving them to numbered positions produces nothing. So call 1 could
-  not be built from config.
-- **Attaching to each order is a loop** over orders, and config has none.
+**Each order's own participants** — `GET /v1/customers/45/orders`:
 
-KrakenD loads Lua lazily: a script with a syntax error passes `krakend check`, starts,
-passes its health check — and fails the first request to the route with a 500. So
-`make lint` parses every script with `luac5.1` (KrakenD's Lua is 5.1) before anything
-ships.
+```
+0. GET /customers/45/orders                 the orders
+   pluck(r, 'orders', 'id', 'order_ids')                 ->  [A-1006, A-1008]
+1. GET /events?order_id=A-1006,A-1008       their events
+   pluck(r, 'events', 'participant_ids', 'participant_ids')
+2. GET /users?ids=42,43,44,46,43,45,44,45   every participant, once
+   attach(r, { parents = 'orders', key = 'id',
+               children = 'events', child_key = 'order_id', ids = 'participant_ids',
+               lookup = 'customers', lookup_key = 'customer_id', into = 'participants' })
+   drop(r, { 'order_ids', 'events', ... })
+```
+
+Three calls however many orders — no call per order.
+
+Why Lua at all, and why it is shaped like this — each found by trying it:
+
+- **flatmap has no "for each".** It can address every element with a wildcard but
+  not collect from them (`move` from `events.*.x` keeps only the last; `append`
+  ignores wildcards), and it cannot build a list out of single values like order ids.
+- **An endpoint's `flatmap_filter` runs before its Lua post.** A flatmap cleanup on
+  the same route deleted the data `attach` needed, so the cleanup is `drop`, called
+  after `attach` in the same `post`.
+- **KrakenD loads Lua lazily.** A script with a syntax error passes `krakend check`,
+  starts, passes its health check — and fails the first request to the route. So
+  `make lint` parses every script with `luac5.1` (KrakenD's Lua is 5.1).
 
 ### Tracing a request
 
@@ -489,6 +463,10 @@ No `kubectl`, no `helm`, no `tofu` — a route change is a pull request.
 - **Why Terraform installs Argo CD at all.** Something has to create the thing that
   reads Git. Immediately afterwards `clusters/poc/templates/argocd.yaml` takes over,
   reading the *same* values file, so the two cannot drift.
+- **KrakenD 3, from the official image.** The chart runs `krakend:3.0.0` from Docker
+  Hub's official image; the older `devopsfaith/krakend` stopped at 2.9.4. KrakenD 3
+  needs `"version": 4` in the config and dropped Go plugins from the Community
+  Edition — Lua is its extension point, which is what this repo uses.
 - **The KrakenD chart is ours.** The community chart's last release was in 2024 and it
   can only read its config from inside its own package, which is what pushed the
   gateway config into a YAML string. `apps/krakend/` is ~130 lines of templates and

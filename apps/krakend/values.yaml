@@ -8,8 +8,10 @@
 replicaCount: 2
 
 image:
-  repository: devopsfaith/krakend
-  tag: "2.9.4"
+  # The official image (Docker Hub library/krakend). devopsfaith/krakend stopped
+  # at 2.9.4 in April 2025.
+  repository: krakend
+  tag: "3.0.0"
   pullPolicy: IfNotPresent
 
 # The configuration sources, and where the assembled file is mounted.

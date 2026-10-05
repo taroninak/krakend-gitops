@@ -12,7 +12,7 @@ KEYCLOAK_HOST ?= keycloak.localhost
 IAM_NS       ?= iam
 
 # Used by `make lint` to validate the gateway config with KrakenD itself.
-KRAKEND_IMAGE ?= devopsfaith/krakend:2.9.4
+KRAKEND_IMAGE ?= krakend:3.0.0
 RENDER_DIR    ?= .cache/krakend-render
 INGRESS_PORT ?= 8080
 
@@ -120,6 +120,9 @@ smoke: ## Call the gateway through the ingress
 	@echo "--- GET /v1/orders/A-1006 (customer + participants of both its events, combined in KrakenD)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/A-1006 \
 	| ./scripts/assert-json.py events=2 participants=5 customer.customer_id==45
+	@echo "--- GET /v1/orders/A-1001 (an invited user who does not exist is reported)"
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/A-1001 \
+	| ./scripts/assert-json.py participants=1 participants_missing=1
 	@echo "--- GET /v1/orders/A-1003 (an order with no events has no participants)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/A-1003 \
 	| ./scripts/assert-json.py events=0 participants=0 customer.customer_id==43
@@ -155,10 +158,12 @@ lint: ## Render everything locally (no cluster needed)
 	@cp apps/krakend/config/lua/*.lua $(RENDER_DIR)/
 	@# KrakenD loads Lua lazily: a broken script passes krakend check AND startup,
 	@# and only fails on the first request. KrakenD's Lua is 5.1, so parse with that.
-	@docker run --rm -v "$(PWD)/apps/krakend/config/lua:/lua:ro" alpine:3 \
-	sh -c 'apk add -q lua5.1 >/dev/null && luac5.1 -p /lua/*.lua' \
-	&& echo "krakend config      every Lua script parses" \
-	|| { echo "krakend config      Lua syntax error (see above)"; exit 1; }
+	@if ! docker info >/dev/null 2>&1; then \
+	echo "krakend config      Lua check SKIPPED (docker unavailable)"; \
+	elif docker run --rm -v "$(PWD)/apps/krakend/config/lua:/lua:ro" alpine:3 \
+	sh -c 'apk add -q lua5.1 >/dev/null && luac5.1 -p /lua/*.lua'; then \
+	echo "krakend config      every Lua script parses"; \
+	else echo "krakend config      Lua syntax error (see above)"; exit 1; fi
 	@docker run --rm -v "$(PWD)/$(RENDER_DIR):/etc/krakend:ro" \
 	$(KRAKEND_IMAGE) check -c /etc/krakend/krakend.json >/dev/null 2>&1 \
 	&& echo "krakend config      krakend check OK on the assembled file" \
