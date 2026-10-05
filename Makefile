@@ -128,14 +128,26 @@ smoke: ## Call the gateway through the ingress
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/events/1002 \
 	| ./scripts/assert-json.py participants=1 participants_missing=1 customer.customer_id==42
 	@echo "--- GET /v1/orders/A-1006 (customer + participants of both its events, combined in KrakenD)"
-	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/A-1006 \
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' -H "Authorization: Bearer $$(CLIENT_ID=krakend-demo-globex ./scripts/get-token.sh)" \
+	http://localhost:$(INGRESS_PORT)/v1/orders/A-1006 \
 	| ./scripts/assert-json.py events=2 participants=5 customer.customer_id==45
 	@echo "--- GET /v1/orders/A-1001 (an invited user who does not exist is reported)"
-	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/A-1001 \
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' -H "Authorization: Bearer $$(CLIENT_ID=krakend-demo-globex ./scripts/get-token.sh)" \
+	http://localhost:$(INGRESS_PORT)/v1/orders/A-1001 \
 	| ./scripts/assert-json.py participants=1 participants_missing=1
 	@echo "--- GET /v1/orders/A-1003 (an order with no events has no participants)"
-	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/A-1003 \
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' -H "Authorization: Bearer $$(CLIENT_ID=krakend-demo-globex ./scripts/get-token.sh)" \
+	http://localhost:$(INGRESS_PORT)/v1/orders/A-1003 \
 	| ./scripts/assert-json.py events=0 participants=0 customer.customer_id==43
+	@echo "--- GET /v1/orders/A-1006 without a token (expect 401)"
+	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/A-1006
+	@echo "--- 21 requests for /v1/orders/A-1006 as organization acme (10/min per organization)"
+	@./scripts/assert-rate-limit.sh http://localhost:$(INGRESS_PORT)/v1/orders/A-1006 21 \
+	-H 'Host: $(GATEWAY_HOST)' -H "Authorization: Bearer $$(./scripts/get-token.sh)"
+	@echo "--- ...while organization globex keeps its own quota (expect 200)"
+	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' \
+	-H "Authorization: Bearer $$(CLIENT_ID=krakend-demo-globex ./scripts/get-token.sh)" \
+	http://localhost:$(INGRESS_PORT)/v1/orders/A-1006
 	@echo "--- GET /v1/profile/42 (same two calls, kept nested under groups)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/profile/42; echo
 	@echo "--- GET /v1/protected without a token (expect 401)"

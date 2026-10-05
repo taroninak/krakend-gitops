@@ -119,7 +119,7 @@ ConfigMap would show up as permanent drift in Argo CD.
 | `GET /v1/customers/{id}/orders` | That customer's orders, each with its own `participants` — three calls however many orders, attached by a short Lua script in KrakenD |
 | `GET /v1/customers/{id}` | Calls `/users/{id}` and `/customers/{id}/orders` in parallel and merges their JSON into one object. Requires a Keycloak token, from either the `Authorization` header or a cookie |
 | `GET /v1/customers` | Users with at least one order — a join answered by demo-api in one query, passed straight through |
-| `GET /v1/orders/{id}` | An order with its `customer` and its `events`, plus the `participants` of all those events in one list — collected by the generic Lua `pluck` |
+| `GET /v1/orders/{id}` | An order with its `customer` and its `events`, plus the `participants` of all those events in one list — collected by the generic Lua `pluck`. Needs a token; **10 requests a minute per organization** |
 | `GET /v1/events/{id}` | An event with its `participants` (one batch call) and its `customer`, found by following the event's order |
 | `GET /v1/profile/{id}` | The same two services, but each response kept **nested** under its own group |
 | `GET /v1/protected` | Requires a valid RS256 token issued by the Keycloak `poc` realm, with the `krakend` audience |
@@ -171,7 +171,8 @@ go straight to the right place:
 
 Add user → Create → **Credentials** → Set password, with *Temporary* switched off
 (a temporary password makes Keycloak demand a change at first login, which this
-demo page does not handle).
+demo page does not handle). Set **Organization** too (`acme` or `globex`):
+`/v1/orders/{id}` rate-limits per organization and refuses callers that have none.
 
 Then:
 
@@ -391,6 +392,48 @@ Why Lua at all, and why it is shaped like this — each found by trying it:
 - **KrakenD loads Lua lazily.** A script with a syntax error passes `krakend check`,
   starts, passes its health check — and fails the first request to the route. So
   `make lint` parses every script with `luac5.1` (KrakenD's Lua is 5.1).
+
+### Rate limiting per organization
+
+`GET /v1/orders/{id}` allows **10 requests a minute per organization**, shared by
+every user and client in it — whichever orders they ask for. The organization comes
+from the caller's token, because a rate limit is applied when a request *arrives*,
+before any backend is called: it can only count on something in the request.
+
+```
+Keycloak user attribute organization_id    (declared in the realm's user profile)
+  -> token claim organization_id            (a mapper on each client)
+  -> header X-Organization-Id               (auth/validator: propagate_claims)
+  -> counted by qos/ratelimit/router        (strategy "header", key X-Organization-Id)
+```
+
+The two machine clients are in different organizations, so you can watch one hit the
+limit while the other carries on:
+
+```bash
+ACME=$(make -s token)                                     # krakend-demo, organization acme
+GLOBEX=$(CLIENT_ID=krakend-demo-globex ./scripts/get-token.sh)
+for i in $(seq 12); do curl -s -o /dev/null -w '%{http_code} ' -H "Authorization: Bearer $ACME" \
+  http://api.localhost:8080/v1/orders/A-1006; done        # 200 ×10, then 429
+```
+
+What testing showed, beyond the docs:
+
+- **A caller cannot choose their bucket.** Sending your own `X-Organization-Id` does
+  nothing: the token's claim overwrites it before the limit is counted.
+- **A caller with no organization is refused** with 429 on every request — there is
+  nothing to count on, and KrakenD fails closed. 429 is a confusing status for "you
+  have no organization", so set the attribute on every user.
+- **`client_capacity` is set explicitly.** On KrakenD 3.0.0 it did not default to
+  `client_max_rate` as documented: the bucket held a single request.
+- **Counters are per KrakenD instance.** With 2 replicas an organization gets up to
+  20 requests a minute; shared counters are an Enterprise feature. That is why
+  `make smoke` sends 21 requests and expects at least one 429. It uses `acme`, so for
+  up to a minute afterwards your browser user in `acme` may see 429s too.
+
+The organizations were added to the running realm through Keycloak's admin API and to
+`realm-poc.json` for new clusters; the realm is seeded from Git, not reconciled (see
+*Identity*).
 
 ### Tracing a request
 

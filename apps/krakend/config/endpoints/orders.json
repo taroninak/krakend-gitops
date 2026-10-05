@@ -5,6 +5,33 @@
     "method": "GET",
     "output_encoding": "json",
     "extra_config": {
+      "auth/validator": {
+        "@comment": "Who is calling decides the rate-limit bucket: the token's organization_id claim is copied into the X-Organization-Id header, which the limiter below counts on.",
+        "alg": "RS256",
+        "jwk_url": "http://keycloak-keycloakx-http.iam.svc.cluster.local/realms/poc/protocol/openid-connect/certs",
+        "issuer": "http://keycloak.localhost:8080/realms/poc",
+        "audience": [
+          "krakend"
+        ],
+        "cookie_key": "access_token",
+        "cache": true,
+        "cache_duration": 900,
+        "disable_jwk_security": true,
+        "propagate_claims": [
+          [
+            "organization_id",
+            "X-Organization-Id"
+          ]
+        ]
+      },
+      "qos/ratelimit/router": {
+        "@comment": "10 requests a minute per organization, shared by every user and client in it. Counters live in each KrakenD instance's memory, so with 2 replicas an organization gets up to 20 a minute. client_capacity is set explicitly: on 3.0.0 it did not default to client_max_rate as documented, and the bucket held a single request.",
+        "client_max_rate": 10,
+        "client_capacity": 10,
+        "every": "1m",
+        "strategy": "header",
+        "key": "X-Organization-Id"
+      },
       "proxy": {
         "sequential": true,
         "flatmap_filter": [
