@@ -108,12 +108,12 @@ smoke: ## Call the gateway through the ingress
 	@echo "--- GET /v1/customers (id list, then ONE batch call for all of them)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers \
 	| ./scripts/assert-json.py customers=4
-	@echo "--- GET /v1/events/1001 (two id lists, one batch call each)"
+	@echo "--- GET /v1/events/1001 (participants in one batch call; customer via the event's order)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/events/1001 \
-	| ./scripts/assert-json.py participants=4 customers=2
+	| ./scripts/assert-json.py participants=4 customer.customer_id==45
 	@echo "--- GET /v1/events/1002 (an id with no user is reported, not dropped)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/events/1002 \
-	| ./scripts/assert-json.py participants=1 customers=1 participants_missing=1
+	| ./scripts/assert-json.py participants=1 participants_missing=1 customer.customer_id==42
 	@echo "--- GET /v1/profile/42 (same two calls, kept nested under groups)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/profile/42; echo
 	@echo "--- GET /v1/protected without a token (expect 401)"

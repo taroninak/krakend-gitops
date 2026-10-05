@@ -1,11 +1,12 @@
 // events routes — data/events.json
 //
-//   GET /events/:id   an event, referring to people by id only
+//   GET /events/:id   an event: its participants by id, and the order it is about
 //
-// Turning those ids into user objects is the gateway's job: /v1/events/{id}
-// reads participant_ids and customer_ids from here and resolves each list with
-// a single GET /users?ids=... batch call. The handler reads its data when the
-// request arrives, the way it would query a database.
+// Resolving those references is the gateway's job. /v1/events/{id} reads this,
+// fetches the participants with one GET /users?ids=... batch call, and follows
+// order_id → GET /orders/:id → customer_id → GET /users/:id to the customer.
+// The handler reads its data when the request arrives, the way it would query
+// a database.
 "use strict";
 
 const express = require("express");

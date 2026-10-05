@@ -5,6 +5,7 @@
 //   GET /customer-ids                   routes/users.js     data/users.json
 //   GET /users/:id                      routes/users.js     data/users.json
 //   GET /users?ids=42,43                routes/users.js     data/users.json
+//   GET /orders/:orderId                routes/orders.js    data/orders.json
 //   GET /customers/:customerId/orders   routes/orders.js    data/orders.json
 //   GET /events/:id                     routes/events.js    data/events.json
 //

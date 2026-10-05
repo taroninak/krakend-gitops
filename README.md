@@ -117,7 +117,7 @@ ConfigMap would show up as permanent drift in Argo CD.
 | `GET /v1/customers/{id}/orders` | That customer's orders on their own |
 | `GET /v1/customers/{id}` | Calls `/users/{id}` and `/customers/{id}/orders` in parallel and merges their JSON into one object. Requires a Keycloak token, from either the `Authorization` header or a cookie |
 | `GET /v1/customers` | Reads the customer id list from one upstream call, then fetches all of them in a **single** batch call |
-| `GET /v1/events/{id}` | An event's `participants` and `customers`, each resolved from ids to user objects in one batch call |
+| `GET /v1/events/{id}` | An event with its `participants` (one batch call) and its `customer`, found by following the event's order |
 | `GET /v1/profile/{id}` | The same two services, but each response kept **nested** under its own group |
 | `GET /v1/protected` | Requires a valid RS256 token issued by the Keycloak `poc` realm, with the `krakend` audience |
 | `GET /__health` | KrakenD's built-in health endpoint (used by the probes) |
@@ -292,30 +292,42 @@ is also how you would build it for real.
 proves the upstream filters rather than returning everything. Ask for an id that
 does not exist and the gateway passes the upstream's `missing` list through.
 
-### Resolving several id lists
+### Following references: event → order → customer
 
-demo-api's `/events/{id}` knows events only by the ids of the people involved.
-`GET /v1/events/1001` turns both lists into user objects:
+An event in `data/events.json` names its participants by id and refers to one
+order. It does not say who the customer is — the order does. `GET /v1/events/1001`
+follows both references:
 
 ```
 GET /v1/events/1001
-  1. GET /events/1001        ->  {"title": "...", "participant_ids": ["42","43","44","46"],
-                                  "customer_ids": ["42","45"]}
-  2. GET /users?ids=42,43,44,46   ┐ both read ids from call 1,
-  3. GET /users?ids=42,45         ┘ one batch call per list
+  0. GET /events/1001            ->  {"title": "...", "order_id": "A-1006",
+                                      "participant_ids": ["42","43","44","46"]}
+  1. GET /orders/A-1006          ->  {"id": "A-1006", "customer_id": "45", ...}      order_id from call 0
+  2. GET /users/45               ->  {"customer_id": "45", "name": "Katherine ..."}  customer_id from call 1
+  3. GET /users?ids=42,43,44,46  ->  {"customers": [ …4 users… ]}                   participant_ids from call 0
 
-  {"event_id": "1001", "title": "Quarterly business review",
-   "participants": [ {…Ada…}, {…Grace…}, {…Alan…}, {…Edsger…} ],
-   "customers":    [ {…Ada…}, {…Katherine…} ]}
+  {"event_id": "1001", "title": "Quarterly business review", "order_id": "A-1006",
+   "customer":     {…Katherine…},
+   "participants": [ {…Ada…}, {…Grace…}, {…Alan…}, {…Edsger…} ]}
 ```
 
-Ada (42) is in both lists, as she should be: each list is resolved independently.
+Call 2 is the interesting one: `{resp1_customer_id}` takes a value from **call 1**,
+which itself was built from call 0. Placeholders can read any earlier call, so a
+chain can be as long as the data needs.
 
-Both batch calls answer with an array named `customers`, so merged as-is one list
-would overwrite the other. The participants backend uses `mapping` to rename its
-array to `participants`. `missing` gets the same treatment per list, so an id with
-no user is reported against the list it came from — `/v1/events/1002` invites a
-user who does not exist and shows `"participants_missing": ["99"]`.
+Two things in the config exist only to make that work:
+
+- **Calls 0 and 1 declare no `group`.** A group nests a call's data under a name,
+  and `resp*_` placeholders cannot reach into it. The cost is that the order's own
+  fields (`id`, `item`, …) land at the top level of the merged response, so
+  `flatmap_filter` deletes them, along with the now-resolved `participant_ids`.
+- **The participants call renames its array.** `/users?ids=` answers with
+  `customers`; `mapping` renames it to `participants`, and `missing` to
+  `participants_missing` — `/v1/events/1002` invites a user who does not exist and
+  shows `"participants_missing": ["99"]`.
+
+The customer (Katherine) is not among the participants; in event 1002 the customer
+(Ada) is. Both are fine: the two references are resolved independently.
 
 ### Tracing a request
 
