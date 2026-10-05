@@ -95,6 +95,7 @@ in Git. The chart assembles it from ordinary JSON:
 apps/krakend/config/
 ├── service.json          # port, timeouts, logging — everything but the routes
 └── endpoints/
+    ├── orders.json       # /v1/orders/{id}
     ├── customers.json    # /v1/users/{id}, /v1/customers, /v1/customers/{id}, /v1/customers/{id}/orders, /v1/profile/{id}
     └── protected.json    # /v1/protected
 ```
@@ -117,6 +118,7 @@ ConfigMap would show up as permanent drift in Argo CD.
 | `GET /v1/customers/{id}/orders` | That customer's orders on their own |
 | `GET /v1/customers/{id}` | Calls `/users/{id}` and `/customers/{id}/orders` in parallel and merges their JSON into one object. Requires a Keycloak token, from either the `Authorization` header or a cookie |
 | `GET /v1/customers` | Reads the customer id list from one upstream call, then fetches all of them in a **single** batch call |
+| `GET /v1/orders/{id}` | An order with its `customer` and its `events`, plus the `participants` of all those events combined into one list — in KrakenD config |
 | `GET /v1/events/{id}` | An event with its `participants` (one batch call) and its `customer`, found by following the event's order |
 | `GET /v1/profile/{id}` | The same two services, but each response kept **nested** under its own group |
 | `GET /v1/protected` | Requires a valid RS256 token issued by the Keycloak `poc` realm, with the `krakend` audience |
@@ -328,6 +330,55 @@ Two things in the config exist only to make that work:
 
 The customer (Katherine) is not among the participants; in event 1002 the customer
 (Ada) is. Both are fine: the two references are resolved independently.
+
+### Combining lists from several calls: an order's participants
+
+An order has several events, and each event lists its participants. `GET
+/v1/orders/A-1006` returns the order with one `participants` list covering all of
+its events — combined by KrakenD, with no combining code in demo-api:
+
+```
+GET /v1/orders/A-1006
+  0. GET /orders/A-1006             ->  {"id": "A-1006", "customer_id": "45", "item": ..., "total": ...}
+  1. GET /users/45                  ->  the customer                          customer_id from call 0
+  2. GET /events?order_id=A-1006    ->  {"events": [ {1001, participant_ids: [42,43,44,46]},
+                                                     {1003, participant_ids: [43,45]} ]}
+     flatmap on this call           ->  participant_ids: [42,43,44,46,43,45]
+  3. GET /users?ids=42,43,44,46,43,45  ->  5 users: Grace (43) once        participant_ids from call 2
+
+  {"id": "A-1006", "item": "Slide rule", ..., "customer": {…Katherine…},
+   "events": [ {"event_id": "1001", ...}, {"event_id": "1003", ...} ],
+   "participants": [ {…Ada…}, {…Grace…}, {…Alan…}, {…Katherine…}, {…Edsger…} ]}
+```
+
+The combining is a `flatmap_filter` on call 2, before the next call reads it:
+
+```json
+{ "type": "move",   "args": ["events.0.participant_ids", "participant_ids"] },
+{ "type": "append", "args": ["events.1.participant_ids", "participant_ids"] },
+{ "type": "append", "args": ["events.2.participant_ids", "participant_ids"] },
+...
+```
+
+What makes it work, and where it stops — each found by trying it:
+
+- **A later call sees a backend's flatmap result.** `{resp2_participant_ids}` reads the
+  list the flatmap built, not the raw response.
+- **flatmap has no "for each".** A wildcard can address every event but cannot collect
+  from them: `move` from `events.*.participant_ids` keeps only the *last* list, and
+  `append` ignores wildcards entirely. So there is one `append` per event slot — five
+  here. A sixth event's participants would be silently left out.
+- **Duplicates are left to the server.** Grace is in both events, so the gathered list
+  names her twice. `/users?ids=` behaves like `WHERE customer_id IN (...)` and returns
+  each matching user once.
+- **An order with no events** (A-1003) never gets a `participant_ids` field, so the
+  placeholder goes upstream unresolved. It matches no user and `participants` comes
+  back empty — the right answer — but it would show up in `missing`, so this route
+  drops `missing`. Unknown participant ids (event 1002's `99`) are reported on
+  `/v1/events/{id}` instead.
+
+Doing the same with no cap is possible in KrakenD too, with a short Lua script on
+call 2 — it can loop. This route stays with plain config to show how far that goes.
 
 ### Tracing a request
 

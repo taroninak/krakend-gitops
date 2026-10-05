@@ -4,14 +4,31 @@
     {
       "event_id": "1001",
       "title": "Quarterly business review",
-      "participant_ids": ["42", "43", "44", "46"],
+      "participant_ids": [
+        "42",
+        "43",
+        "44",
+        "46"
+      ],
       "order_id": "A-1006"
     },
     {
       "event_id": "1002",
       "title": "Planning session with a stale invite",
-      "participant_ids": ["42", "99"],
+      "participant_ids": [
+        "42",
+        "99"
+      ],
       "order_id": "A-1001"
+    },
+    {
+      "event_id": "1003",
+      "title": "Follow-up workshop",
+      "participant_ids": [
+        "43",
+        "45"
+      ],
+      "order_id": "A-1006"
     }
   ]
 }

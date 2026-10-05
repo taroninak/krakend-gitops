@@ -114,6 +114,12 @@ smoke: ## Call the gateway through the ingress
 	@echo "--- GET /v1/events/1002 (an id with no user is reported, not dropped)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/events/1002 \
 	| ./scripts/assert-json.py participants=1 participants_missing=1 customer.customer_id==42
+	@echo "--- GET /v1/orders/A-1006 (customer + participants of both its events, combined in KrakenD)"
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/A-1006 \
+	| ./scripts/assert-json.py events=2 participants=5 customer.customer_id==45
+	@echo "--- GET /v1/orders/A-1003 (an order with no events has no participants)"
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/orders/A-1003 \
+	| ./scripts/assert-json.py events=0 participants=0 customer.customer_id==43
 	@echo "--- GET /v1/profile/42 (same two calls, kept nested under groups)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/profile/42; echo
 	@echo "--- GET /v1/protected without a token (expect 401)"

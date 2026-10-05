@@ -20,27 +20,30 @@ router.get("/customer-ids", async (req, res) => {
 });
 
 router.get("/users", async (req, res) => {
-  // Accepts ?ids=42,43 and ?ids=42&ids=43 alike, and tolerates stray spaces.
-  const requested = [req.query.ids ?? []]
-    .flat()
-    .flatMap((value) => String(value).split(","))
-    .map((id) => id.trim())
-    .filter(Boolean);
-
   const { users } = await readData("users.json");
 
-  if (requested.length === 0) {
+  // No ids parameter at all: every user.
+  if (req.query.ids === undefined) {
     return res.json({ customers: users });
   }
 
-  const found = requested
-    .map((id) => users.find((user) => user.customer_id === id))
-    .filter(Boolean);
-  const missing = requested.filter((id) => !users.some((user) => user.customer_id === id));
+  // Like WHERE customer_id IN (...): each matching user comes back once, however
+  // often its id was asked for, and an empty list matches nobody. Accepts
+  // ?ids=42,43 and ?ids=42&ids=43 alike, and tolerates stray spaces.
+  const requested = new Set(
+    [req.query.ids]
+      .flat()
+      .flatMap((value) => String(value).split(","))
+      .map((id) => id.trim())
+      .filter(Boolean),
+  );
+
+  const found = users.filter((user) => requested.has(user.customer_id));
+  const missing = [...requested].filter((id) => !found.some((user) => user.customer_id === id));
 
   res.json({
     customers: found,
-    requested: requested.length,
+    requested: requested.size,
     returned: found.length,
     // Only present when something was asked for that does not exist, so the
     // gateway can tell the caller instead of silently dropping it.
