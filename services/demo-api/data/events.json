@@ -29,6 +29,15 @@
         "45"
       ],
       "order_id": "A-1006"
+    },
+    {
+      "event_id": "1004",
+      "title": "Orbital mechanics seminar",
+      "participant_ids": [
+        "44",
+        "45"
+      ],
+      "order_id": "A-1008"
     }
   ]
 }

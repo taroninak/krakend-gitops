@@ -14,12 +14,57 @@
     ]
   },
   {
+    "@comment": "A customer's orders, each with its own participants. Three calls whatever the number of orders: 0 the orders; 1 the events of all of them; 2 every participant in one batch. Attaching participants to each order is a loop, which KrakenD config cannot express, so three small functions in lua/customer-orders.lua do the looping \u2014 collect the order ids after call 0, the participant ids after call 1, and attach each order's users at the end.",
     "endpoint": "/v1/customers/{id}/orders",
     "method": "GET",
     "output_encoding": "json",
+    "extra_config": {
+      "proxy": {
+        "sequential": true
+      },
+      "modifier/lua-proxy": {
+        "sources": [
+          "/etc/krakend/customer-orders.lua"
+        ],
+        "post": "attach_participants(response.load())",
+        "allow_open_libs": false
+      }
+    },
     "backend": [
       {
         "url_pattern": "/customers/{id}/orders",
+        "encoding": "json",
+        "host": [
+          "http://demo-api.demo.svc.cluster.local:8080"
+        ],
+        "extra_config": {
+          "modifier/lua-backend": {
+            "sources": [
+              "/etc/krakend/customer-orders.lua"
+            ],
+            "post": "collect_order_ids(response.load())",
+            "allow_open_libs": false
+          }
+        }
+      },
+      {
+        "url_pattern": "/events?order_id={resp0_order_ids}",
+        "encoding": "json",
+        "host": [
+          "http://demo-api.demo.svc.cluster.local:8080"
+        ],
+        "extra_config": {
+          "modifier/lua-backend": {
+            "sources": [
+              "/etc/krakend/customer-orders.lua"
+            ],
+            "post": "collect_participant_ids(response.load())",
+            "allow_open_libs": false
+          }
+        }
+      },
+      {
+        "url_pattern": "/users?ids={resp1_participant_ids}",
         "encoding": "json",
         "host": [
           "http://demo-api.demo.svc.cluster.local:8080"

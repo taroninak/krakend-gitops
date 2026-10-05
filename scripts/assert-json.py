@@ -3,8 +3,10 @@
 
 Usage: curl ... | assert-json.py participants=4 customer.customer_id==45
 
-  key=N           key holds a list of N items
-  a.b.c==value    the value at that path equals value (compared as text)
+  a.b=N           the value at that path is a list of N items
+  a.0.b==value    the value at that path equals value (compared as text)
+
+Paths use dots; a number selects a list element.
 
 Exists because two gateway routes depend on KrakenD rendering a whole JSON array
 as a comma-joined string inside a {resp0_...} placeholder. That is what 2.9.4
@@ -23,7 +25,12 @@ except ValueError:
 def at(path):
     node = body
     for part in path.split("."):
-        node = node.get(part) if isinstance(node, dict) else None
+        if isinstance(node, dict):
+            node = node.get(part)
+        elif isinstance(node, list) and part.isdigit() and int(part) < len(node):
+            node = node[int(part)]
+        else:
+            return None
     return node
 
 
@@ -36,7 +43,7 @@ for spec in sys.argv[1:]:
             failures.append("%s: expected %s, got %r" % (path, want, got))
     else:
         key, want = spec.split("=", 1)
-        got = body.get(key)
+        got = at(key)
         size = len(got) if isinstance(got, list) else None
         if size != int(want):
             failures.append("%s: expected a list of %s, got %r" % (key, want, got if size is None else size))

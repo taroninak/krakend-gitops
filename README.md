@@ -35,6 +35,7 @@ upgrade path — is pulled from this repository.
 | `platform/argocd/values.yaml` | Argo CD's own Helm values — used by the Terraform install **and** by Argo CD itself |
 | `apps/krakend/config/service.json` | Gateway-wide settings: port, timeouts, logging |
 | `apps/krakend/config/endpoints/` | One JSON file per group of routes |
+| `apps/krakend/config/lua/` | Lua for the one thing config cannot do: loop over a list. Mounted next to `krakend.json` |
 | `apps/krakend/` | A small chart that assembles those into the file KrakenD reads |
 | `apps/keycloak/` | Umbrella chart: the upstream `keycloakx` chart, its PostgreSQL, and the realm |
 | `services/demo-api/` | The upstream services: a small Express app (`src/routes/users.js`, `orders.js`, `events.js`) and the JSON each one serves (`data/`). CI builds both into `ghcr.io/taroninak/demo-api` |
@@ -115,7 +116,7 @@ ConfigMap would show up as permanent drift in Argo CD.
 |----------|-----------|
 | `GET /v1/profile` | Aggregates two upstream calls (`/uuid` + `/headers`) into one JSON response, rate limited to 20 req/s |
 | `GET /v1/users/{id}` | The users service on its own |
-| `GET /v1/customers/{id}/orders` | That customer's orders on their own |
+| `GET /v1/customers/{id}/orders` | That customer's orders, each with its own `participants` — three calls however many orders, attached by a short Lua script in KrakenD |
 | `GET /v1/customers/{id}` | Calls `/users/{id}` and `/customers/{id}/orders` in parallel and merges their JSON into one object. Requires a Keycloak token, from either the `Authorization` header or a cookie |
 | `GET /v1/customers` | Reads the customer id list from one upstream call, then fetches all of them in a **single** batch call |
 | `GET /v1/orders/{id}` | An order with its `customer` and its `events`, plus the `participants` of all those events combined into one list — in KrakenD config |
@@ -378,7 +379,42 @@ What makes it work, and where it stops — each found by trying it:
   `/v1/events/{id}` instead.
 
 Doing the same with no cap is possible in KrakenD too, with a short Lua script on
-call 2 — it can loop. This route stays with plain config to show how far that goes.
+call 2 — it can loop. This route stays with plain config to show how far that goes;
+the next one shows where config stops.
+
+### Where config stops: each order's own participants
+
+`GET /v1/customers/45/orders` lists a customer's orders and gives **each order** the
+participants of its own events:
+
+```
+GET /v1/customers/45/orders
+  0. GET /customers/45/orders              ->  orders A-1006, A-1008
+     lua collect_order_ids                 ->  order_ids: [A-1006, A-1008]
+  1. GET /events?order_id=A-1006,A-1008    ->  events 1001, 1003 (A-1006) and 1004 (A-1008)
+     lua collect_participant_ids           ->  participant_ids: [42,43,44,46,43,45,44,45]
+  2. GET /users?ids=42,43,44,46,43,45,44,45  ->  5 users
+     lua attach_participants               ->  each order gets the users from its own events
+
+  {"order_count": 2, "lifetime_value": 50, "orders": [
+     {"id": "A-1006", ..., "participants": [Ada, Grace, Alan, Edsger, Katherine]},
+     {"id": "A-1008", ..., "participants": [Alan, Katherine]} ]}
+```
+
+Three calls whatever the number of orders — no call per order. The calls are
+declared in the config like any other route; `apps/krakend/config/lua/customer-orders.lua`
+holds three short functions that do only the looping, which config cannot:
+
+- **flatmap can combine lists but not build one from single values.** Order ids are
+  one string per order; moving the first into a key and appending the rest keeps only
+  the first, and moving them to numbered positions produces nothing. So call 1 could
+  not be built from config.
+- **Attaching to each order is a loop** over orders, and config has none.
+
+KrakenD loads Lua lazily: a script with a syntax error passes `krakend check`, starts,
+passes its health check — and fails the first request to the route with a 500. So
+`make lint` parses every script with `luac5.1` (KrakenD's Lua is 5.1) before anything
+ships.
 
 ### Tracing a request
 

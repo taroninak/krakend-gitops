@@ -23,3 +23,8 @@ metadata:
 data:
   {{ include "krakend.configFileName" . }}: |
 {{ toPrettyJson $config | indent 4 }}
+  {{- /* Lua scripts the endpoints reference, mounted beside krakend.json. */}}
+  {{- range $path, $_ := .Files.Glob .Values.config.luaGlob }}
+  {{ base $path }}: |
+{{ $.Files.Get $path | indent 4 }}
+  {{- end }}

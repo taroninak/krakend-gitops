@@ -18,6 +18,8 @@ config:
   fileName: krakend.json
   serviceFile: config/service.json
   endpointsGlob: config/endpoints/*.json
+  # Lua scripts, mounted next to the config as /etc/krakend/<name>.lua
+  luaGlob: config/lua/*.lua
   mountPath: /etc/krakend
 
 service:

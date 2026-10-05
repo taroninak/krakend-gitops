@@ -90,6 +90,9 @@ smoke: ## Call the gateway through the ingress
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/__health; echo
 	@echo "--- GET /v1/users/42 (demo-api /users/42)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/users/42; echo
+	@echo "--- GET /v1/customers/45/orders (each order with its own participants)"
+	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers/45/orders \
+	| ./scripts/assert-json.py orders=2 orders.0.id==A-1006 orders.0.participants=5 orders.1.id==A-1008 orders.1.participants=2
 	@echo "--- GET /v1/customers/43/orders (only customer 43's orders)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers/43/orders \
 	| ./scripts/assert-json.py orders=3
@@ -149,6 +152,13 @@ lint: ## Render everything locally (no cluster needed)
 	&& echo "krakend config      every source file is valid JSON"
 	@mkdir -p $(RENDER_DIR)
 	@./scripts/render-krakend-config.sh > $(RENDER_DIR)/krakend.json
+	@cp apps/krakend/config/lua/*.lua $(RENDER_DIR)/
+	@# KrakenD loads Lua lazily: a broken script passes krakend check AND startup,
+	@# and only fails on the first request. KrakenD's Lua is 5.1, so parse with that.
+	@docker run --rm -v "$(PWD)/apps/krakend/config/lua:/lua:ro" alpine:3 \
+	sh -c 'apk add -q lua5.1 >/dev/null && luac5.1 -p /lua/*.lua' \
+	&& echo "krakend config      every Lua script parses" \
+	|| { echo "krakend config      Lua syntax error (see above)"; exit 1; }
 	@docker run --rm -v "$(PWD)/$(RENDER_DIR):/etc/krakend:ro" \
 	$(KRAKEND_IMAGE) check -c /etc/krakend/krakend.json >/dev/null 2>&1 \
 	&& echo "krakend config      krakend check OK on the assembled file" \

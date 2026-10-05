@@ -7,7 +7,7 @@
 //   GET /users?ids=42,43                routes/users.js     data/users.json
 //   GET /orders/:orderId                routes/orders.js    data/orders.json
 //   GET /customers/:customerId/orders   routes/orders.js    data/orders.json
-//   GET /events?order_id=A-1006         routes/events.js    data/events.json
+//   GET /events?order_id=A-1006,A-1008  routes/events.js    data/events.json
 //   GET /events/:id                     routes/events.js    data/events.json
 //
 // Each request is logged with its status and duration, so
