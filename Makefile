@@ -40,8 +40,18 @@ up: ## Create the cluster, install Argo CD, hand over to Git
 down: ## Destroy the cluster
 	@$(TOFU) -chdir=$(INFRA) destroy -auto-approve
 
+.PHONY: dev
+dev: ## Run local demo-api code and gateway config in the cluster, no release (undo: make dev-off)
+	@./scripts/dev.sh
+
+.PHONY: dev-off
+dev-off: ## Hand demo-api and the gateway back to Git, undoing make dev
+	@./scripts/dev-off.sh
+
 .PHONY: status
 status: ## Show what Argo CD thinks of the world
+	@[ -n "$$(kubectl -n $(ARGOCD_NS) get application root -o jsonpath='{.spec.syncPolicy.automated}' 2>/dev/null)" ] \
+	|| echo "!! DEV MODE: demo-api and krakend run your working copy, not Git. Undo with: make dev-off"
 	@kubectl -n $(ARGOCD_NS) get applications.argoproj.io
 	@echo
 	@kubectl -n gateway get deploy,pod,svc,ingress 2>/dev/null || true
@@ -135,12 +145,8 @@ smoke: ## Call the gateway through the ingress
 	-H "Authorization: Bearer $$(./scripts/get-token.sh)" \
 	http://localhost:$(INGRESS_PORT)/v1/protected
 
-.PHONY: lint
-lint: ## Render everything locally (no cluster needed)
-	@$(TOFU) -chdir=$(INFRA) fmt -check && echo "infra/              fmt OK"
-	@$(TOFU) -chdir=$(INFRA) validate >/dev/null && echo "infra/              validate OK"
-	@helm template root clusters/poc --set repoURL=https://example.com/repo.git >/dev/null && echo "clusters/poc        OK"
-	@helm template portal apps/portal >/dev/null && echo "apps/portal         OK"
+.PHONY: lint-demo-api
+lint-demo-api: ## Check demo-api's code, data and chart
 	@for f in services/demo-api/data/*.json; do \
 	python3 -c "import json,sys;json.load(open(sys.argv[1]))" "$$f" || exit 1; done \
 	&& echo "demo-api data        every data file is valid JSON"
@@ -148,8 +154,9 @@ lint: ## Render everything locally (no cluster needed)
 	&& echo "demo-api code        every module parses"
 	@helm template demo-api apps/demo-api >/dev/null \
 	&& echo "apps/demo-api       OK"
-	@helm dependency build apps/keycloak >/dev/null 2>&1 || true
-	@helm template keycloak apps/keycloak >/dev/null && echo "apps/keycloak       OK"
+
+.PHONY: lint-krakend
+lint-krakend: ## Check the gateway config and Lua, as KrakenD will load them
 	@for f in apps/krakend/config/service.json apps/krakend/config/endpoints/*.json; do \
 	python3 -c "import json,sys;json.load(open(sys.argv[1]))" "$$f" || exit 1; done \
 	&& echo "krakend config      every source file is valid JSON"
@@ -159,14 +166,27 @@ lint: ## Render everything locally (no cluster needed)
 	@# KrakenD loads Lua lazily: a broken script passes krakend check AND startup,
 	@# and only fails on the first request. KrakenD's Lua is 5.1, so parse with that.
 	@if ! docker info >/dev/null 2>&1; then \
-	echo "krakend config      Lua check SKIPPED (docker unavailable)"; \
-	elif docker run --rm -v "$(PWD)/apps/krakend/config/lua:/lua:ro" alpine:3 \
-	sh -c 'apk add -q lua5.1 >/dev/null && luac5.1 -p /lua/*.lua'; then \
+	echo "krakend config      Lua check and krakend check SKIPPED (docker unavailable)"; \
+	else \
+	docker run --rm -v "$(PWD)/apps/krakend/config/lua:/lua:ro" alpine:3 \
+	sh -c 'apk add -q lua5.1 >/dev/null && luac5.1 -p /lua/*.lua' \
+	|| { echo "krakend config      Lua syntax error (see above)"; exit 1; }; \
 	echo "krakend config      every Lua script parses"; \
-	else echo "krakend config      Lua syntax error (see above)"; exit 1; fi
-	@docker run --rm -v "$(PWD)/$(RENDER_DIR):/etc/krakend:ro" \
-	$(KRAKEND_IMAGE) check -c /etc/krakend/krakend.json >/dev/null 2>&1 \
-	&& echo "krakend config      krakend check OK on the assembled file" \
-	|| echo "krakend config      krakend check SKIPPED (docker unavailable)"
+	docker run --rm -v "$(PWD)/$(RENDER_DIR):/etc/krakend:ro" \
+	$(KRAKEND_IMAGE) check -c /etc/krakend/krakend.json \
+	|| { echo "krakend config      krakend check FAILED (see above)"; exit 1; }; \
+	echo "krakend config      krakend check OK on the assembled file"; \
+	fi
 	@helm template krakend apps/krakend >/dev/null && echo "apps/krakend        OK"
+
+.PHONY: lint
+lint: ## Render everything locally (no cluster needed)
+	@$(TOFU) -chdir=$(INFRA) fmt -check && echo "infra/              fmt OK"
+	@$(TOFU) -chdir=$(INFRA) validate >/dev/null && echo "infra/              validate OK"
+	@helm template root clusters/poc --set repoURL=https://example.com/repo.git >/dev/null && echo "clusters/poc        OK"
+	@helm template portal apps/portal >/dev/null && echo "apps/portal         OK"
+	@$(MAKE) -s lint-demo-api
+	@helm dependency build apps/keycloak >/dev/null 2>&1 || true
+	@helm template keycloak apps/keycloak >/dev/null && echo "apps/keycloak       OK"
+	@$(MAKE) -s lint-krakend
 	@helm template argocd argo/argo-cd --values platform/argocd/values.yaml >/dev/null && echo "platform/argocd     OK"

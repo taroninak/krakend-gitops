@@ -438,6 +438,35 @@ The chart in `apps/demo-api/` deploys that image and nothing else.
 To run a service locally: `cd services/demo-api && npm install && npm run users`
 (also `orders`, `events`), then `curl localhost:9001/users?ids=42,43`.
 
+### Trying changes locally: `make dev`
+
+To check a change to demo-api or the gateway before releasing it:
+
+```bash
+make dev       # build services/demo-api and apply it, plus apps/krakend, from your working copy
+make smoke     # or try the API by hand
+make dev       # again after every change
+make dev-off   # back to exactly what Git says
+```
+
+No version bump, no CI, no push. `make dev` first runs `lint-demo-api` and
+`lint-krakend`, so a broken Lua script is caught before it reaches the cluster
+(KrakenD would start with it and fail only on the first request). It then builds
+the demo-api image and loads it straight into the kind nodes, so no registry is
+involved, and applies both charts from your working copy. demo-api restarts on
+every run; the gateway restarts whenever its config, Lua or chart changed.
+
+**How it gets past GitOps.** Argo CD reverts anything that is not in Git within
+seconds, so `make dev` pauses auto-sync for `demo-api`, `krakend`, and `root`, which
+owns their sync settings and would otherwise switch auto-sync straight back on.
+Every other Application keeps syncing as usual. While paused, `root` shows
+`OutOfSync` and `make status` prints a DEV MODE banner: the cluster deliberately
+differs from Git until `make dev-off`, which restores `root`'s auto-sync as
+`infra/charts/argocd-bootstrap` defines it and lets Argo CD put everything back.
+
+(Argo CD's `skip-reconcile` annotation looks made for this, but on Argo CD 3.5.1 it
+did not stop `selfHeal`: a manual change was reverted with it set.)
+
 ### Changing a route
 
 1. Edit the relevant file under `apps/krakend/config/`
