@@ -2,16 +2,17 @@
   {
     "endpoint": "/v1/users/{id}",
     "method": "GET",
-    "output_encoding": "json",
+    "output_encoding": "no-op",
     "backend": [
       {
         "url_pattern": "/users/{id}",
-        "encoding": "json",
+        "encoding": "no-op",
         "host": [
           "http://demo-api.demo.svc.cluster.local:8080"
         ]
       }
-    ]
+    ],
+    "@comment": "Passed through untouched (no-op): the client gets demo-api's status, headers and body as they are \u2014 a missing user is demo-api's own 404 and its JSON explanation, not a gateway 500. no-op allows exactly one backend and no processing."
   },
   {
     "@comment": "A customer's orders, each with its own participants, in three calls however many orders there are: 0 the orders; 1 the events of all of them; 2 every participant in one batch. The generic Lua in lua/collections.lua does the looping config cannot: pluck collects ids for the next call, attach gives each order the users from its own events. The key names below say what joins to what.",
@@ -82,7 +83,12 @@
         "encoding": "json",
         "host": [
           "http://demo-api.demo.svc.cluster.local:8080"
-        ]
+        ],
+        "extra_config": {
+          "backend/http": {
+            "return_error_details": "user"
+          }
+        }
       },
       {
         "url_pattern": "/customers/{id}/orders",
@@ -105,8 +111,16 @@
         "cache": true,
         "cache_duration": 900,
         "disable_jwk_security": true
+      },
+      "modifier/lua-proxy": {
+        "sources": [
+          "/etc/krakend/errors.lua"
+        ],
+        "post": "remap_status(response.load(), 'error_user', 404, 418, 'No such customer')",
+        "allow_open_libs": false
       }
-    }
+    },
+    "@comment": "The user and their orders, merged. If the user call answers 404, the client gets 418 'No such customer' instead: return_error_details records that call's failure as error_user, and lua/errors.lua turns that 404 into a 418. Without this the route answered 200 with only the empty orders half."
   },
   {
     "@comment": "Users with at least one order. Deciding who counts as a customer is a join of users and orders \u2014 a database question \u2014 so demo-api answers it in one query and the gateway just passes it through.",

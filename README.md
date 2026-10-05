@@ -35,7 +35,7 @@ upgrade path — is pulled from this repository.
 | `platform/argocd/values.yaml` | Argo CD's own Helm values — used by the Terraform install **and** by Argo CD itself |
 | `apps/krakend/config/service.json` | Gateway-wide settings: port, timeouts, logging |
 | `apps/krakend/config/endpoints/` | One JSON file per group of routes |
-| `apps/krakend/config/lua/` | Lua for the one thing config cannot do: loop over a list. Mounted next to `krakend.json` |
+| `apps/krakend/config/lua/` | Small generic Lua, mounted next to `krakend.json`: `collections.lua` for working with lists, `errors.lua` for changing an error's status |
 | `apps/krakend/` | A small chart that assembles those into the file KrakenD reads |
 | `apps/keycloak/` | Umbrella chart: the upstream `keycloakx` chart, its PostgreSQL, and the realm |
 | `services/demo-api/` | The upstream services: a small Express app (`src/routes/users.js`, `orders.js`, `events.js`) and the JSON each one serves (`data/`). CI builds both into `ghcr.io/taroninak/demo-api` |
@@ -115,9 +115,9 @@ ConfigMap would show up as permanent drift in Argo CD.
 | Endpoint | Behaviour |
 |----------|-----------|
 | `GET /v1/profile` | Aggregates two upstream calls (`/uuid` + `/headers`) into one JSON response, rate limited to 20 req/s |
-| `GET /v1/users/{id}` | The users service on its own |
+| `GET /v1/users/{id}` | One user, passed through untouched (`no-op`): a missing user is demo-api's own 404 and JSON body |
 | `GET /v1/customers/{id}/orders` | That customer's orders, each with its own `participants` — three calls however many orders, attached by a short Lua script in KrakenD |
-| `GET /v1/customers/{id}` | Calls `/users/{id}` and `/customers/{id}/orders` in parallel and merges their JSON into one object. Requires a Keycloak token, from either the `Authorization` header or a cookie |
+| `GET /v1/customers/{id}` | Calls `/users/{id}` and `/customers/{id}/orders` in parallel and merges their JSON into one object. Requires a Keycloak token, from either the `Authorization` header or a cookie. A customer that does not exist gets **418** instead of the backend's 404 |
 | `GET /v1/customers` | Users with at least one order — a join answered by demo-api in one query, passed straight through |
 | `GET /v1/orders/{id}` | An order with its `customer` and its `events`, plus the `participants` of all those events in one list — collected by the generic Lua `pluck`. Needs a token; **10 requests a minute per organization** |
 | `GET /v1/events/{id}` | An event with its `participants` (one batch call) and its `customer`, found by following the event's order |
@@ -434,6 +434,44 @@ What testing showed, beyond the docs:
 The organizations were added to the running realm through Keycloak's admin API and to
 `realm-poc.json` for new clusters; the realm is seeded from Git, not reconciled (see
 *Identity*).
+
+### Error status codes from the backend
+
+By default KrakenD hides what went wrong upstream: when demo-api answers 404, the
+client gets a **500 with an empty body**, or — on a route that merges several calls —
+a **200 with whatever half succeeded**, flagged only by an `X-KrakenD-Completed:
+false` header. Two routes show the alternatives:
+
+**Pass it through — `GET /v1/users/{id}`.** With `"output_encoding": "no-op"` (and
+`"encoding": "no-op"` on its one backend) the client gets demo-api's response exactly:
+status, headers, body.
+
+```
+GET /v1/users/99   ->  404  {"error": "no such record", "customer_id": "99"}
+```
+
+`no-op` allows a single backend and no processing, so it fits pass-through routes only.
+
+**Change it — `GET /v1/customers/{id}`.** A customer that does not exist gets **418**
+instead of the 404 demo-api gives for the user. Two pieces:
+
+- `"return_error_details": "user"` on the user call makes KrakenD record that call's
+  failure in the response, as `error_user: {"http_status_code": 404, ...}`, instead of
+  dropping it.
+- `remap_status(response.load(), 'error_user', 404, 418, 'No such customer')` in
+  `apps/krakend/config/lua/errors.lua` turns that recorded 404 into a 418 with
+  KrakenD's `custom_error`. Any other failure of the user call passes through as it
+  was, so demo-api being down is not reported as "no such customer".
+
+Before this, the route answered 200 with only the empty orders half — a customer that
+looked real but had no orders.
+
+The 418 has an empty body; "No such customer" appears in the gateway log. KrakenD sends
+such messages to clients only with the router's `return_error_msg` on, which is left
+off here because it also puts backend URLs into every error body
+(`invalid status code 404 [GET /events/{{.Id}}]: http://...`).
+
+The other routes still use the default; `/v1/orders/NOPE` answers 500.
 
 ### Tracing a request
 

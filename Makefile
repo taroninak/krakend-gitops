@@ -109,6 +109,13 @@ smoke: ## Call the gateway through the ingress
 	@echo "--- GET /v1/customers/46/orders (a customer with no orders gets an empty list)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers/46/orders \
 	| ./scripts/assert-json.py orders=0
+	@echo "--- GET /v1/users/99 (no-op: demo-api's own 404 and body, unchanged)"
+	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/users/99
+	@curl -s -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/users/99 \
+	| ./scripts/assert-json.py 'error==no such record' customer_id==99
+	@echo "--- GET /v1/customers/99 with a token (no such customer: 418 instead of the backend's 404)"
+	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' \
+	-H "Authorization: Bearer $$(./scripts/get-token.sh)" http://localhost:$(INGRESS_PORT)/v1/customers/99
 	@echo "--- GET /v1/customers/42 without a token (expect 401)"
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers/42
 	@echo "--- GET /v1/customers/43 with a bearer token (user + their own orders, merged flat)"
