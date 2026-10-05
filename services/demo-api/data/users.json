@@ -1,15 +1,5 @@
 {
-  "_about": "customerIds is what GET /customer-ids returns; users are served by GET /users/:id one at a time, or GET /users?ids=42,43 several in one call.",
-  "customerIds": {
-    "segment": "gold",
-    "count": 4,
-    "ids": [
-      "42",
-      "43",
-      "44",
-      "45"
-    ]
-  },
+  "_about": "Users. GET /users/:id serves one, GET /users?ids=42,43 several in one call, and GET /customers those with at least one order in orders.json.",
   "users": [
     {
       "customer_id": "42",

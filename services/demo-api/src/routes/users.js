@@ -1,6 +1,6 @@
 // users routes — data/users.json
 //
-//   GET /customer-ids        the id list the gateway reads first
+//   GET /customers           users with at least one order (joins orders.json)
 //   GET /users/:id           one user
 //   GET /users?ids=42,43     several users in ONE call — this batch form is what
 //                            lets the gateway avoid one request per id
@@ -14,9 +14,14 @@ const { readData } = require("../data");
 
 const router = express.Router();
 
-router.get("/customer-ids", async (req, res) => {
-  const { customerIds } = await readData("users.json");
-  res.json(customerIds);
+// A customer is a user with at least one order: a join of users and orders.
+// That is a database question, so it is answered here, not in the gateway.
+router.get("/customers", async (req, res) => {
+  const { users } = await readData("users.json");
+  const { orders } = await readData("orders.json");
+
+  const hasOrders = new Set(orders.map((order) => order.customer_id));
+  res.json({ customers: users.filter((user) => hasOrders.has(user.customer_id)) });
 });
 
 router.get("/users", async (req, res) => {

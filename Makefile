@@ -118,7 +118,7 @@ smoke: ## Call the gateway through the ingress
 	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -H 'Host: $(GATEWAY_HOST)' \
 	--cookie "access_token=$$(./scripts/get-token.sh)" \
 	http://localhost:$(INGRESS_PORT)/v1/customers/42
-	@echo "--- GET /v1/customers (id list, then ONE batch call for all of them)"
+	@echo "--- GET /v1/customers (users with at least one order: one query in demo-api)"
 	@curl -fsS -H 'Host: $(GATEWAY_HOST)' http://localhost:$(INGRESS_PORT)/v1/customers \
 	| ./scripts/assert-json.py customers=4
 	@echo "--- GET /v1/events/1001 (participants in one batch call; customer via the event's order)"

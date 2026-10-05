@@ -109,57 +109,13 @@
     }
   },
   {
-    "@comment": "Two calls, any number of customers: backend 0 returns the id list, and backend 1 passes all of it to the batch endpoint in one request. A whole array substituted into {resp0_ids} is rendered comma-joined by KrakenD 2.9 \u2014 observed behaviour, not documented, so `make smoke` asserts the result size to catch a change on upgrade.",
+    "@comment": "Users with at least one order. Deciding who counts as a customer is a join of users and orders \u2014 a database question \u2014 so demo-api answers it in one query and the gateway just passes it through.",
     "endpoint": "/v1/customers",
     "method": "GET",
     "output_encoding": "json",
-    "extra_config": {
-      "proxy": {
-        "sequential": true,
-        "flatmap_filter": [
-          {
-            "type": "del",
-            "args": [
-              "segment"
-            ]
-          },
-          {
-            "type": "del",
-            "args": [
-              "count"
-            ]
-          },
-          {
-            "type": "del",
-            "args": [
-              "ids"
-            ]
-          },
-          {
-            "type": "del",
-            "args": [
-              "requested"
-            ]
-          },
-          {
-            "type": "del",
-            "args": [
-              "returned"
-            ]
-          }
-        ]
-      }
-    },
     "backend": [
       {
-        "url_pattern": "/customer-ids",
-        "encoding": "json",
-        "host": [
-          "http://demo-api.demo.svc.cluster.local:8080"
-        ]
-      },
-      {
-        "url_pattern": "/users?ids={resp0_ids}",
+        "url_pattern": "/customers",
         "encoding": "json",
         "host": [
           "http://demo-api.demo.svc.cluster.local:8080"

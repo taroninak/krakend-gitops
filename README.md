@@ -118,7 +118,7 @@ ConfigMap would show up as permanent drift in Argo CD.
 | `GET /v1/users/{id}` | The users service on its own |
 | `GET /v1/customers/{id}/orders` | That customer's orders, each with its own `participants` — three calls however many orders, attached by a short Lua script in KrakenD |
 | `GET /v1/customers/{id}` | Calls `/users/{id}` and `/customers/{id}/orders` in parallel and merges their JSON into one object. Requires a Keycloak token, from either the `Authorization` header or a cookie |
-| `GET /v1/customers` | Reads the customer id list from one upstream call, then fetches all of them in a **single** batch call |
+| `GET /v1/customers` | Users with at least one order — a join answered by demo-api in one query, passed straight through |
 | `GET /v1/orders/{id}` | An order with its `customer` and its `events`, plus the `participants` of all those events in one list — collected by the generic Lua `pluck` |
 | `GET /v1/events/{id}` | An event with its `participants` (one batch call) and its `customer`, found by following the event's order |
 | `GET /v1/profile/{id}` | The same two services, but each response kept **nested** under its own group |
@@ -255,45 +255,47 @@ under their own name instead of being flattened:
 {"identity": {"customer_id": "42", ...}, "purchases": {"order_count": 2, ...}}
 ```
 
-### Chaining calls without the N+1
+### One batch call instead of one call per id
 
-`GET /v1/customers` builds its second call out of the first call's response body,
-and fetches every customer in that one call:
+Several routes read a list of ids from one call and fetch all of those users in the
+next — `/v1/events/1001` does it for the event's participants:
 
 ```
-GET /v1/customers
-  1. GET /customer-ids        ->  {"ids": ["42","43","44","45"], "count": 4}
-  2. GET /users?ids=42,43,44,45  ->  {"customers": [ …4 objects… ]}
-
-  {"customers": [ {…Ada…}, {…Grace…}, {…Alan…}, {…Katherine…} ]}
+GET /v1/events/1001
+  ...
+  GET /users?ids=42,43,44,46  ->  {"customers": [ …4 users… ]}    participant_ids from the event
 ```
 
-Two upstream calls, whatever the number of ids — `kubectl -n demo logs deploy/demo-api`
+One call, whatever the number of ids — `kubectl -n demo logs deploy/demo-api`
 prints one line per call, with its status and duration. The design rests on two choices:
 
-- **The whole id array goes into one placeholder.** `{resp0_ids}` with
-  `ids: ["42","43","44","45"]` becomes `/users?ids=42,43,44,45`: KrakenD 2.9 joins a
+- **The whole id array goes into one placeholder.** `{resp0_participant_ids}` with
+  `["42","43","44","46"]` becomes `/users?ids=42,43,44,46`: KrakenD joins a
   substituted array with commas. That is *observed* behaviour in 2.9 and 3.0, not something
   the docs promise — they only say values "are represented as string". So
   `make smoke` asserts the size of every list these routes return; if an upgrade
   renders arrays differently, the smoke test fails instead of the routes quietly
   returning empty lists. What genuinely does not work is *indexing into* an array
-  (`{resp0_ids.0}`): *"You cannot access nested objects inside arrays or
+  (`{resp0_participant_ids.0}`): *"You cannot access nested objects inside arrays or
   collections: fields must be objects."*
 - **The upstream exposes a batch endpoint.** demo-api serves `/users/42` for one
   user and `/users?ids=42,43` for many, so the gateway never has to loop.
 
 This matters because KrakenD CE *cannot* loop over a list to make a variable number
-of calls — the config declares a fixed set of backends. Before the batch endpoint
-existed this route needed one declared backend per id, which capped it at three
-customers and meant four upstream calls. Fan-out per element is an Enterprise
+of calls — the config declares a fixed set of backends. Without the batch endpoint,
+fetching a list of users would need one declared backend per id: a fixed cap, and
+one upstream call each. Fan-out per element is an Enterprise
 Workflows / Lua / Go-plugin affair, and KrakenD's own docs call it an anti-pattern:
 latency and error rate both multiply. A batch endpoint upstream is the fix, and it
 is also how you would build it for real.
 
-`services/demo-api/data/users.json` holds five users while the id list asks for four, so the response
-proves the upstream filters rather than returning everything. Ask for an id that
-does not exist and the gateway passes the upstream's `missing` list through.
+Ask for an id that does not exist and the upstream reports it in `missing`;
+`/v1/events/1002` shows it as `participants_missing`.
+
+**Not everything is a gateway job.** `GET /v1/customers` — users with at least one
+order — could be assembled in KrakenD, but deciding who counts as a customer is a
+join of users and orders: a database question. demo-api answers it in one query
+(`GET /customers`) and the gateway passes it through.
 
 ### Following references: event → order → customer
 

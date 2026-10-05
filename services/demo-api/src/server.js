@@ -2,7 +2,7 @@
 // Express app. Every route the gateway calls is listed here:
 //
 //   route                               code                data
-//   GET /customer-ids                   routes/users.js     data/users.json
+//   GET /customers                      routes/users.js     data/users.json + orders.json
 //   GET /users/:id                      routes/users.js     data/users.json
 //   GET /users?ids=42,43                routes/users.js     data/users.json
 //   GET /orders/:orderId                routes/orders.js    data/orders.json

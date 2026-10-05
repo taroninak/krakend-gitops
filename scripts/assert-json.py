@@ -8,7 +8,7 @@ Usage: curl ... | assert-json.py participants=4 customer.customer_id==45
 
 Paths use dots; a number selects a list element.
 
-Exists because two gateway routes depend on KrakenD rendering a whole JSON array
+Exists because several gateway routes depend on KrakenD rendering a whole JSON array
 as a comma-joined string inside a {resp0_...} placeholder. That is what 2.9
 and 3.0 do, but it is not documented — so if an upgrade changes it, the batch calls
 would silently return empty lists. This turns that into a failed smoke test.
